@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+staticfiles/
+.env
+*.log
+.playwright-cli/
+output/
