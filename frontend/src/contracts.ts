@@ -47,6 +47,7 @@ export const planSchema = z.object({
   routes: z.array(route).length(3),
   recommended_id: z.string().nullable(),
   recommendation_reason: z.string(),
+  generated_at: z.string(),
   corridor: z.array(
     z.object({
       coordinate,
@@ -60,7 +61,14 @@ export const planSchema = z.object({
   destination: z.object({ name: z.string(), coordinate }),
   load_lb: z.number(),
   spacing_miles: z.number(),
-  sources: z.object({ routing: z.string(), weather: z.string(), forecast_locations: z.number() }),
+  sources: z.object({
+    routing: z.string(),
+    weather: z.string(),
+    forecast_locations: z.number(),
+    forecast_retrieved_at: z.string().nullable(),
+    forecast_latest_retrieved_at: z.string().nullable(),
+    forecast_cached_batches: z.number(),
+  }),
   warnings: z.array(z.string()),
 });
 export type Place = z.infer<typeof placeSchema>;

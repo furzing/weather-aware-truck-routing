@@ -21,6 +21,7 @@ jobs:
       - run: ruff check backend scripts
       - run: ruff format --check backend scripts
       - run: python backend/manage.py test routing -v 2
+      - run: python scripts/evaluate_scenarios.py
       - run: npm --prefix frontend run lint
       - run: npm --prefix frontend run format:check
       - run: npm --prefix frontend test

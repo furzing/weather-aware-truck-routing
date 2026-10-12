@@ -2,7 +2,7 @@
 
 Assumed user: a driver or dispatcher comparing a planned North American trip. The decision is which of three routes has less forecast exposure under the assessment policy, with time as the final tie-breaker.
 
-The desktop layout keeps trip inputs and route comparison next to the map. Checkpoint details remain available in a table; essential information does not require using map tooltips. On narrow screens the sections stack in task order. The forecast slider inspects a fixed departure-based 48-hour window independently of route selection.
+The map occupies the full desktop workspace height except for a 52-pixel action strip. The Spotter / Route planner header belongs entirely to the 340-pixel sidebar (320 pixels at intermediate widths). Trip inputs collapse to a trip summary after successful planning and reopen with Edit trip. Routes and Weather are separate sidebar views; the forecast slider and legend never overlay the map. Checkpoints open in a bounded drawer on demand, initially closed. Fit routes restores the geographic extent without planning again. On mobile, Trip & weather expands the side-panel content above the map; successful planning closes it so the map is immediately visible. Checkpoint details and forecast controls remain keyboard accessible.
 
 Font: locally bundled Inter Variable, with sans-serif fallback. Roles: page title 20/650; section title 16/650; body/control 13–14/400–600; supporting data 12/400; compact legend 11/400. No additional display fonts. Inter's variable font uses the declared weights.
 
@@ -12,4 +12,4 @@ Spacing: 4/8/12/16/20/24/28/32 px. Controls: 42–44 px high. Panel radius: 8 px
 
 States: initial, planning, cancelled, invalid, failed, results, changed inputs, and all routes blocked. Changed trip inputs leave the previous result visible with an explicit update message. No provider failure can silently replace weather with zeros or a demonstration fixture. Existing results remain visible if a refresh fails.
 
-Map provider colors and labels belong to the basemap; the application overlays follow this palette. Geographic cells are a sampled risk field, not a radar image. Road segments show arrival-based risk while the cells show the slider's absolute forecast time. These distinct meanings are explained in the recommendation disclosure.
+Map provider colors and labels belong to the basemap; the application overlays follow this palette. The weather canvas uses the declared risk colors with bounded opacity and interpolation of underlying wind/rain/snow samples. It is a forecast visualization, not a radar image. Road segments show arrival-based risk while the field shows the slider's absolute forecast time. These distinct meanings and interpolation limits are explained in the Weather view. Forecast retrieval time is distinguished from model issue time. No interface state claims continuous automatic updates.

@@ -1,8 +1,8 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from .geometry import checkpoints, corridor
 from .providers import ProviderError, Providers, location_key, weather_at
-from .risk import classify, recommendation, summarize
+from .risk import classify, explain_recommendation, recommendation, summarize
 
 
 def build_plan(data):
@@ -78,9 +78,8 @@ def build_plan(data):
         return {
             "routes": routes,
             "recommended_id": recommended,
-            "recommendation_reason": "Lowest Severe miles, then High miles, distance-weighted average risk, then driving time. Routes with No Travel checkpoints are excluded."
-            if recommended
-            else "Every route includes No Travel conditions. Delay departure and check again.",
+            "recommendation_reason": explain_recommendation(routes),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "corridor": cells,
             "forecast_hours": hours,
             "departure": data["departure"].isoformat(),
@@ -92,6 +91,9 @@ def build_plan(data):
                 "routing": "OSRM / OpenStreetMap (car profile)",
                 "weather": "Open-Meteo",
                 "forecast_locations": len(forecasts),
+                "forecast_retrieved_at": min(provider.forecast_fetch_times, default=None),
+                "forecast_latest_retrieved_at": max(provider.forecast_fetch_times, default=None),
+                "forecast_cached_batches": provider.forecast_cache_hits,
             },
             "warnings": [
                 "Assessment planning tool. Routes do not check truck height, road restrictions, traffic, rest stops, or hours of service.",

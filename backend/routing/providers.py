@@ -1,16 +1,20 @@
 import bisect
 import hashlib
 import json
+import logging
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import httpx
 from django.conf import settings
 from django.core.cache import cache
 
-from .geometry import distance
+from .geometry import distance, road_overlap
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderError(Exception):
@@ -20,6 +24,8 @@ class ProviderError(Exception):
 class Providers:
     def __init__(self):
         self.deadline = time.monotonic() + 85
+        self.forecast_fetch_times = []
+        self.forecast_cache_hits = 0
         self.client = httpx.Client(
             headers={"User-Agent": "WeatherAwareTruckRouting/1.0 assessment"},
             timeout=20,
@@ -30,24 +36,47 @@ class Providers:
         self.client.close()
 
     def get(self, url, params, ttl=600):
-        key = hashlib.sha256(json.dumps([url, params], sort_keys=True).encode()).hexdigest()
+        key = "v2:" + hashlib.sha256(json.dumps([url, params], sort_keys=True).encode()).hexdigest()
         cached = cache.get(key)
         if cached is not None:
-            return cached
-        remaining = self.deadline - time.monotonic()
-        if remaining <= 0:
-            raise ProviderError(
-                "The planning deadline was reached. Please retry with a shorter trip."
-            )
-        try:
-            response = self.client.get(url, params=params, timeout=min(20, remaining))
-            response.raise_for_status()
-            data = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(
-                "A routing or forecast service is unavailable. Please retry shortly."
-            ) from exc
-        cache.set(key, data, ttl)
+            if url == settings.WEATHER_URL:
+                self.forecast_fetch_times.append(cached["retrieved_at"])
+                self.forecast_cache_hits += 1
+            return cached["data"]
+        for attempt in range(2):
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderError(
+                    "The planning deadline was reached. Please retry with a shorter trip."
+                )
+            try:
+                response = self.client.get(url, params=params, timeout=min(20, remaining))
+                response.raise_for_status()
+                data = response.json()
+                break
+            except (httpx.HTTPError, ValueError) as exc:
+                status = (
+                    exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+                )
+                transient = isinstance(
+                    exc, (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError)
+                ) or status in (502, 503, 504)
+                logger.warning(
+                    "Provider %s attempt %s failed: %s status=%s",
+                    urlsplit(url).netloc,
+                    attempt + 1,
+                    type(exc).__name__,
+                    status,
+                )
+                if attempt == 0 and transient:
+                    continue
+                raise ProviderError(
+                    "A routing or forecast service is unavailable. Please retry shortly."
+                ) from exc
+        retrieved_at = datetime.now(timezone.utc).isoformat()
+        cache.set(key, {"data": data, "retrieved_at": retrieved_at}, ttl)
+        if url == settings.WEATHER_URL:
+            self.forecast_fetch_times.append(retrieved_at)
         return data
 
     def places(self, query):
@@ -102,12 +131,8 @@ class Providers:
         routes = []
 
         def add(candidate, note):
-            # Alternative routes must differ beyond a tiny endpoint variation.
-            if any(
-                abs(candidate["distance"] - r["distance"]) < 500
-                and abs(candidate["duration"] - r["duration"]) < 60
-                for r in routes
-            ):
+            # Equal duration/distance does not imply the same roads.
+            if any(road_overlap(candidate, r) >= 0.98 for r in routes):
                 return
             candidate["via_note"] = note
             routes.append(candidate)

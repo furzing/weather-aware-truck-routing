@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { colors, dateTime, labels, type Plan } from './contracts';
+import { colors, dateTime, type Plan } from './contracts';
+import { fieldLevel, interpolateWeather } from './weatherField';
 
 const latLng = ([lon, lat]: [number, number]): L.LatLngTuple => [lat, lon];
 
@@ -12,6 +13,7 @@ export function RouteMap({
   heatmap,
   focusIndex,
   onSelect,
+  fitRequest,
 }: {
   plan: Plan | null;
   selectedId: string;
@@ -19,6 +21,7 @@ export function RouteMap({
   heatmap: boolean;
   focusIndex: number | null;
   onSelect: (id: string) => void;
+  fitRequest: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -46,12 +49,13 @@ export function RouteMap({
     }).addTo(map);
     map.createPane('weather');
     map.getPane('weather')!.style.zIndex = '350';
+    map.getPane('weather')!.style.pointerEvents = 'none';
     const resize = new ResizeObserver(() => {
       map.invalidateSize();
       if (boundsRef.current)
         map.fitBounds(boundsRef.current, {
-          paddingTopLeft: [40, 110],
-          paddingBottomRight: [40, 210],
+          padding: [40, 40],
+          maxZoom: 11,
           animate: false,
         });
     });
@@ -68,11 +72,11 @@ export function RouteMap({
     const bounds = L.latLngBounds(plan.routes.flatMap((r) => r.geometry.coordinates.map(latLng)));
     boundsRef.current = bounds;
     map.fitBounds(bounds, {
-      paddingTopLeft: [45, 100],
-      paddingBottomRight: [45, 210],
+      padding: [40, 40],
+      maxZoom: 11,
       animate: false,
     });
-  }, [plan]);
+  }, [plan, fitRequest]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !plan) return;
@@ -136,22 +140,56 @@ export function RouteMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !plan || !heatmap) return;
-    const layer = L.layerGroup().addTo(map);
-    for (const cell of plan.corridor) {
-      const w = cell.hours[hour];
-      const tooltip = document.createElement('div');
-      tooltip.textContent = `${labels[w.level]} · ${w.wind_mph.toFixed(1)} mph wind · ${w.rain_in.toFixed(2)} in/hr rain · ${w.snow_in.toFixed(2)} in/hr snow`;
-      L.rectangle(cell.bounds, {
-        pane: 'weather',
-        stroke: false,
-        fillColor: colors[w.level],
-        fillOpacity: w.level ? 0.35 : 0.14,
-      })
-        .addTo(layer)
-        .bindTooltip(tooltip);
+    const canvas = L.DomUtil.create('canvas', 'weather-field', map.getPane('weather'));
+    canvas.setAttribute('aria-hidden', 'true');
+    const rgb = colors.map((c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)));
+    function draw() {
+      if (!map || !plan) return;
+      const size = map.getSize();
+      const scale = 4;
+      canvas.width = Math.ceil(size.x / scale);
+      canvas.height = Math.ceil(size.y / scale);
+      canvas.style.width = `${size.x}px`;
+      canvas.style.height = `${size.y}px`;
+      L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]));
+      const samples = plan.corridor.map((c) => {
+        const p = map.latLngToContainerPoint(latLng(c.coordinate));
+        const edge = map.latLngToContainerPoint(c.bounds[1]);
+        const w = c.hours[hour];
+        return {
+          x: p.x / scale,
+          y: p.y / scale,
+          radius: Math.max(1, (p.distanceTo(edge) * 2) / scale),
+          wind: w.wind_mph,
+          rain: w.rain_in,
+          snow: w.snow_in,
+        };
+      });
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const pixels = ctx.createImageData(canvas.width, canvas.height);
+      for (let y = 0; y < canvas.height; y++)
+        for (let x = 0; x < canvas.width; x++) {
+          const w = interpolateWeather(samples, x, y);
+          if (!w) continue;
+          const level = fieldLevel(w.wind, w.rain, w.snow, plan.load_lb);
+          const offset = (y * canvas.width + x) * 4;
+          pixels.data.set(rgb[level], offset);
+          pixels.data[offset + 3] = Math.round((level ? 95 : 36) * w.opacity);
+        }
+      ctx.putImageData(pixels, 0, 0);
+      canvas.style.visibility = 'visible';
     }
+    const hide = () => {
+      canvas.style.visibility = 'hidden';
+    };
+    map.on('moveend zoomend resize', draw);
+    map.on('zoomstart', hide);
+    draw();
     return () => {
-      layer.remove();
+      map.off('moveend zoomend resize', draw);
+      map.off('zoomstart', hide);
+      canvas.remove();
     };
   }, [plan, hour, heatmap]);
   useEffect(() => {
@@ -164,7 +202,7 @@ export function RouteMap({
     <div
       ref={container}
       className="map"
-      aria-label="Map of route alternatives and forecast weather. Checkpoint details are available in the table below."
+      aria-label="Map of route alternatives and interpolated forecast weather. Open Checkpoints for arrival-time details."
     />
   );
 }

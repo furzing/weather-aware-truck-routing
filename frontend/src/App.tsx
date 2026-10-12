@@ -54,6 +54,11 @@ export default function App() {
   const [error, setError] = useState('');
   const [hour, setHour] = useState(0);
   const [heatmap, setHeatmap] = useState(true);
+  const [fitRequest, setFitRequest] = useState(0);
+  const [editingTrip, setEditingTrip] = useState(true);
+  const [sidebarView, setSidebarView] = useState<'routes' | 'weather'>('routes');
+  const [checkpointsOpen, setCheckpointsOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState(true);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const controller = useRef<AbortController | null>(null);
   const route = plan?.routes.find((r) => r.id === selectedId);
@@ -101,6 +106,8 @@ export default function App() {
       if (!parsed.success)
         throw new Error('The planner returned incomplete route data. Please retry.');
       setPlan(parsed.data);
+      setEditingTrip(false);
+      setMobilePanel(false);
       setSelectedId(parsed.data.recommended_id ?? parsed.data.routes[0].id);
       setHour(0);
       setFocusIndex(null);
@@ -121,296 +128,273 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <div className="brand-mark">
-            <Truck size={23} aria-hidden="true" />
-          </div>
-          <span>
-            Spotter<span className="brand-suffix"> / Route planner</span>
-          </span>
-        </div>
-        <span className="assessment-label">Weather-Aware Truck Routing</span>
-        <details className="about">
-          <summary>
-            About this tool <ChevronDown size={15} aria-hidden="true" />
-          </summary>
-          <div className="about-panel">
-            <strong>Plan with weather in view.</strong>
-            <p>
-              This assessment compares forecast risk using the supplied wind, rain, snow, and load
-              rules. It does not certify a route as safe for a truck.
-            </p>
-            <p>
-              Road routes: OSRM car profile. Forecasts: Open-Meteo. Truck clearances, road
-              restrictions, traffic, breaks, and hours of service are not included.
-            </p>
-          </div>
-        </details>
-      </header>
       <main>
-        <aside className="sidebar" aria-label="Trip planning and route comparison">
-          <section className="trip-section">
-            <div className="section-heading">
-              <RouteIcon size={20} aria-hidden="true" />
-              <h1>Plan your trip</h1>
-            </div>
-            <p className="intro">Compare the weather ahead, before you choose a route.</p>
-            <form onSubmit={(e) => void submit(e)}>
-              <fieldset disabled={busy} className="trip-fields">
-                <CitySearch label="Origin" value={origin} onChange={setOrigin} />
-                <CitySearch label="Destination" value={destination} onChange={setDestination} />
-                <div className="field">
-                  <label htmlFor="departure">Departure</label>
-                  <input
-                    id="departure"
-                    type="datetime-local"
-                    required
-                    value={departure}
-                    onChange={(e) => setDeparture(e.target.value)}
-                  />
-                  <span className="field-message">{timezone} · within the next 72 hours</span>
-                </div>
-                <div className="form-row">
-                  <div className="field">
-                    <label htmlFor="load">
-                      Load weight <span>(lb)</span>
-                    </label>
-                    <input
-                      id="load"
-                      type="number"
-                      min="0"
-                      max="80000"
-                      step="1"
-                      required
-                      value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="spacing">Checkpoints</label>
-                    <select
-                      id="spacing"
-                      value={spacing}
-                      onChange={(e) => setSpacing(Number(e.target.value))}
-                    >
-                      <option value={10}>Every 10 mi</option>
-                      <option value={25}>Every 25 mi</option>
-                      <option value={50}>Every 50 mi</option>
-                    </select>
-                  </div>
-                </div>
-                <button type="submit" className="primary-button">
-                  {busy ? (
-                    <>
-                      <LoaderCircle className="spinner" size={18} aria-hidden="true" /> Checking
-                      routes & weather…
-                    </>
-                  ) : (
-                    <>
-                      Compare routes <ArrowRight size={18} aria-hidden="true" />
-                    </>
-                  )}
-                </button>
-              </fieldset>
-              {busy && (
-                <button
-                  type="button"
-                  className="text-button cancel-button"
-                  onClick={() => controller.current?.abort()}
-                >
-                  Cancel planning
-                </button>
-              )}
-              {error && (
-                <div role="alert" className="error-message">
-                  {error}
-                </div>
-              )}
-              {dirty && (
-                <p className="changed-message" role="status">
-                  Trip inputs changed. Compare again to update the results.
-                </p>
-              )}
-              <span className="sr-only" role="status">
-                {busy
-                  ? 'Checking three routes and weather at each arrival time.'
-                  : plan
-                    ? 'Route comparison ready.'
-                    : ''}
-              </span>
-            </form>
-          </section>
-          <section className="routes-section" aria-labelledby="routes-heading">
-            <div className="section-heading routes-heading">
-              <h2 id="routes-heading">Route comparison</h2>
-              <span>{plan ? '3 options' : 'Awaiting trip'}</span>
-            </div>
-            {!plan ? (
-              <div className="empty-routes">
-                <CloudSun size={31} aria-hidden="true" />
-                <h3>See what’s ahead</h3>
-                <p>
-                  Three road routes, checked against the forecast at each checkpoint’s arrival time.
-                </p>
-                <ul>
-                  <li>Wind, rain, and snowfall</li>
-                  <li>Load-specific wind restrictions</li>
-                  <li>Risk first. Travel time breaks ties.</li>
-                </ul>
+        <aside
+          className={`sidebar ${mobilePanel ? 'mobile-open' : ''}`}
+          aria-label="Trip planning and route comparison"
+        >
+          <header className="app-header">
+            <div className="brand">
+              <div className="brand-mark">
+                <Truck size={23} aria-hidden="true" />
               </div>
-            ) : (
-              <>
-                {!plan.recommended_id && (
-                  <div className="no-travel-message" role="alert">
-                    <ShieldAlert size={20} aria-hidden="true" />
-                    <div>
-                      <strong>No route recommended</strong>
-                      <p>
-                        All routes contain No Travel conditions. Delay departure and check again.
-                      </p>
-                    </div>
+              <span>
+                Spotter<span className="brand-suffix"> / Route planner</span>
+              </span>
+            </div>
+            <button
+              className="mobile-panel-toggle"
+              type="button"
+              aria-expanded={mobilePanel}
+              onClick={() => setMobilePanel(!mobilePanel)}
+            >
+              Trip & weather
+            </button>
+          </header>
+          <div className="sidebar-body">
+            <section className="trip-section">
+              {plan && !editingTrip && (
+                <div className="trip-summary">
+                  <div>
+                    <strong>
+                      {plan.origin.name.split(',')[0]} → {plan.destination.name.split(',')[0]}
+                    </strong>
+                    <span>
+                      {dateTime(plan.departure)} · {plan.load_lb.toLocaleString()} lb
+                    </span>
                   </div>
-                )}
-                <div className="route-options">
-                  {plan.routes.map((r, i) => (
-                    <button
-                      type="button"
-                      className={`route-option ${selectedId === r.id ? 'selected' : ''}`}
-                      key={r.id}
-                      aria-pressed={selectedId === r.id}
-                      onClick={() => selectRoute(r.id)}
-                    >
-                      <div className="route-option-title">
-                        <span className="route-number">{i + 1}</span>
-                        <strong>{r.name}</strong>
-                        {r.id === plan.recommended_id && (
-                          <span className="recommended">
-                            <Check size={13} aria-hidden="true" /> Recommended
-                          </span>
-                        )}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setEditingTrip(true)}
+                  >
+                    Edit trip
+                  </button>
+                </div>
+              )}
+              <div hidden={!!plan && !editingTrip}>
+                <div className="section-heading">
+                  <RouteIcon size={20} aria-hidden="true" />
+                  <h1>Plan your trip</h1>
+                </div>
+                <p className="intro">Compare the weather ahead, before you choose a route.</p>
+                <form onSubmit={(e) => void submit(e)}>
+                  <fieldset disabled={busy} className="trip-fields">
+                    <CitySearch label="Origin" value={origin} onChange={setOrigin} />
+                    <CitySearch label="Destination" value={destination} onChange={setDestination} />
+                    <div className="field">
+                      <label htmlFor="departure">Departure</label>
+                      <input
+                        id="departure"
+                        type="datetime-local"
+                        required
+                        value={departure}
+                        onChange={(e) => setDeparture(e.target.value)}
+                      />
+                      <span className="field-message">{timezone} · within the next 72 hours</span>
+                    </div>
+                    <div className="form-row">
+                      <div className="field">
+                        <label htmlFor="load">
+                          Load weight <span>(lb)</span>
+                        </label>
+                        <input
+                          id="load"
+                          type="number"
+                          min="0"
+                          max="80000"
+                          step="1"
+                          required
+                          value={weight}
+                          onChange={(e) => setWeight(e.target.value)}
+                        />
                       </div>
-                      <div className="route-stats">
-                        <span>{duration(r.duration_s)}</span>
-                        <span>{Math.round(r.distance_miles)} mi</span>
-                        <RiskBadge level={r.summary.max_risk} />
+                      <div className="field">
+                        <label htmlFor="spacing">Checkpoints</label>
+                        <select
+                          id="spacing"
+                          value={spacing}
+                          onChange={(e) => setSpacing(Number(e.target.value))}
+                        >
+                          <option value={10}>Every 10 mi</option>
+                          <option value={25}>Every 25 mi</option>
+                          <option value={50}>Every 50 mi</option>
+                        </select>
                       </div>
-                      <div className="risk-bar" aria-label={`Risk miles for ${r.name}`}>
-                        {labels.map((label, n) => (
-                          <span
-                            key={label}
-                            style={{
-                              width: `${(r.summary.risk_miles[label] / r.distance_miles) * 100}%`,
-                              backgroundColor: colors[n],
-                            }}
-                            title={`${label}: ${r.summary.risk_miles[label].toFixed(1)} mi`}
-                          />
-                        ))}
-                      </div>
-                      <div className="route-risk-summary">
-                        {r.summary.risk_miles['No Travel'] > 0
-                          ? `${r.summary.risk_miles['No Travel'].toFixed(1)} mi No Travel · excluded`
-                          : `${r.summary.risk_miles.Severe.toFixed(1)} mi Severe · ${r.summary.risk_miles.High.toFixed(1)} mi High`}
-                        <br />
-                        Average risk {r.summary.average_risk.toFixed(2)} / 4
-                      </div>
-                      {r.via_note.startsWith('Via') && (
-                        <span className="via-note">Includes a corridor waypoint</span>
+                    </div>
+                    <button type="submit" className="primary-button">
+                      {busy ? (
+                        <>
+                          <LoaderCircle className="spinner" size={18} aria-hidden="true" /> Checking
+                          routes & weather…
+                        </>
+                      ) : (
+                        <>
+                          Compare routes <ArrowRight size={18} aria-hidden="true" />
+                        </>
                       )}
                     </button>
-                  ))}
-                </div>
-                <details className="method">
-                  <summary>How the recommendation works</summary>
-                  <p>{plan.recommendation_reason}</p>
-                  <p>
-                    Average risk is weighted by miles, on an ordinal 0–4 scale. Each interval uses
-                    the worse of its two checkpoints. It is an estimate, not an accident
-                    probability.
-                  </p>
-                  <p>
-                    The forecast slider changes the corridor view. It does not change checkpoint
-                    ETAs or recompute this trip.
-                  </p>
-                </details>
-              </>
-            )}
-          </section>
-          <details className="policy">
-            <summary>Weather & load thresholds</summary>
-            <div className="policy-content">
-              <p>The highest wind, rain, or snow risk determines checkpoint risk.</p>
-              <table>
-                <caption>Thresholds (mph and in/hr)</caption>
-                <thead>
-                  <tr>
-                    <th>Risk</th>
-                    <th>Wind</th>
-                    <th>Rain</th>
-                    <th>Snow</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['Low', '<25', '<0.10', '<0.5'],
-                    ['Moderate', '25–<35', '0.10–<0.25', '0.5–<1'],
-                    ['High', '35–<45', '0.25–<0.50', '1–<2'],
-                    ['Severe', '45–<55', '0.50–1.00', '2–3'],
-                    ['No Travel', '≥55', '>1.00', '>3'],
-                  ].map((row) => (
-                    <tr key={row[0]}>
-                      {row.map((cell, i) =>
-                        i ? <td key={i}>{cell}</td> : <th key={i}>{cell}</th>,
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p>
-                45–&lt;55 mph + load &gt;30,000 lb: No Travel.
-                <br />
-                35–&lt;45 mph + load &gt;40,000 lb: Severe.
-              </p>
-            </div>
-          </details>
-        </aside>
-        <div className="workspace">
-          <section className="map-section" aria-label="Trip map">
-            <RouteMap
-              plan={plan}
-              selectedId={selectedId}
-              hour={hour}
-              heatmap={heatmap}
-              focusIndex={focusIndex}
-              onSelect={selectRoute}
-            />
-            <div className="map-context">
-              {route && plan ? (
-                <>
-                  <div className="map-context-title">
-                    <strong>{route.name}</strong>
-                    <RiskBadge level={route.summary.max_risk} />
-                  </div>
-                  <span>
-                    {plan.origin.name.split(',')[0]} <ArrowRight size={14} aria-hidden="true" />{' '}
-                    {plan.destination.name.split(',')[0]}
+                  </fieldset>
+                  {busy && (
+                    <button
+                      type="button"
+                      className="text-button cancel-button"
+                      onClick={() => controller.current?.abort()}
+                    >
+                      Cancel planning
+                    </button>
+                  )}
+                  {error && (
+                    <div role="alert" className="error-message">
+                      {error}
+                    </div>
+                  )}
+                  {dirty && (
+                    <p className="changed-message" role="status">
+                      Trip inputs changed. Compare again to update the results.
+                    </p>
+                  )}
+                  <span className="sr-only" role="status">
+                    {busy
+                      ? 'Checking three routes and weather at each arrival time.'
+                      : plan
+                        ? 'Route comparison ready.'
+                        : ''}
                   </span>
-                  <div className="map-context-meta">
-                    <span>
-                      <Clock3 size={14} aria-hidden="true" /> {duration(route.duration_s)}
-                    </span>
-                    <span>{Math.round(route.distance_miles)} miles</span>
-                    <span>{plan.load_lb.toLocaleString()} lb</span>
-                  </div>
-                </>
+                </form>
+              </div>
+            </section>
+            {plan && (
+              <nav className="sidebar-views" aria-label="Planning views">
+                <button
+                  type="button"
+                  aria-pressed={sidebarView === 'routes'}
+                  onClick={() => setSidebarView('routes')}
+                >
+                  Routes
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={sidebarView === 'weather'}
+                  onClick={() => setSidebarView('weather')}
+                >
+                  Weather
+                </button>
+              </nav>
+            )}
+            <section
+              className="routes-section"
+              hidden={!!plan && sidebarView !== 'routes'}
+              aria-labelledby="routes-heading"
+            >
+              <div className="section-heading routes-heading">
+                <h2 id="routes-heading">Route comparison</h2>
+                <span>{plan ? '3 options' : 'Awaiting trip'}</span>
+              </div>
+              {!plan ? (
+                <div className="empty-routes">
+                  <CloudSun size={31} aria-hidden="true" />
+                  <h3>See what’s ahead</h3>
+                  <p>
+                    Three road routes, checked against the forecast at each checkpoint’s arrival
+                    time.
+                  </p>
+                  <ul>
+                    <li>Wind, rain, and snowfall</li>
+                    <li>Load-specific wind restrictions</li>
+                    <li>Risk first. Travel time breaks ties.</li>
+                  </ul>
+                </div>
               ) : (
                 <>
-                  <strong>Your route, with the weather ahead</strong>
-                  <span>Enter your trip and compare three alternatives.</span>
+                  {!plan.recommended_id && (
+                    <div className="no-travel-message" role="alert">
+                      <ShieldAlert size={20} aria-hidden="true" />
+                      <div>
+                        <strong>No route recommended</strong>
+                        <p>
+                          All routes contain No Travel conditions. Delay departure and check again.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="route-options">
+                    {plan.routes.map((r, i) => (
+                      <button
+                        type="button"
+                        className={`route-option ${selectedId === r.id ? 'selected' : ''}`}
+                        key={r.id}
+                        aria-pressed={selectedId === r.id}
+                        onClick={() => selectRoute(r.id)}
+                      >
+                        <div className="route-option-title">
+                          <span className="route-number">{i + 1}</span>
+                          <strong>{r.name}</strong>
+                          {r.id === plan.recommended_id && (
+                            <span className="recommended">
+                              <Check size={13} aria-hidden="true" /> Recommended
+                            </span>
+                          )}
+                        </div>
+                        <div className="route-stats">
+                          <span>{duration(r.duration_s)}</span>
+                          <span>{Math.round(r.distance_miles)} mi</span>
+                          <RiskBadge level={r.summary.max_risk} />
+                        </div>
+                        <div className="risk-bar" aria-label={`Risk miles for ${r.name}`}>
+                          {labels.map((label, n) => (
+                            <span
+                              key={label}
+                              style={{
+                                width: `${(r.summary.risk_miles[label] / r.distance_miles) * 100}%`,
+                                backgroundColor: colors[n],
+                              }}
+                              title={`${label}: ${r.summary.risk_miles[label].toFixed(1)} mi`}
+                            />
+                          ))}
+                        </div>
+                        <div className="route-risk-summary">
+                          {r.summary.risk_miles['No Travel'] > 0
+                            ? `${r.summary.risk_miles['No Travel'].toFixed(1)} mi No Travel · excluded`
+                            : `${r.summary.risk_miles.Severe.toFixed(1)} mi Severe · ${r.summary.risk_miles.High.toFixed(1)} mi High`}
+                          <br />
+                          Average risk {r.summary.average_risk.toFixed(2)} / 4
+                        </div>
+                        {r.via_note.startsWith('Via') && (
+                          <span className="via-note">Includes a corridor waypoint</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="recommendation-explanation">{plan.recommendation_reason}</p>
+                  <details className="method">
+                    <summary>How the recommendation works</summary>
+                    <p>
+                      Exclude No Travel routes. Compare Severe miles, High miles, average risk, then
+                      driving time, in that order.
+                    </p>
+                    <p>
+                      Average risk is weighted by miles, on an ordinal 0–4 scale. Each interval uses
+                      the worse of its two checkpoints. It is an estimate, not an accident
+                      probability.
+                    </p>
+                    <p>
+                      Sampling can miss localized hazards between checkpoints. A 10-mile interval
+                      provides denser checks.
+                    </p>
+                    <p>
+                      The forecast slider changes the corridor view. It does not change checkpoint
+                      ETAs or recompute this trip.
+                    </p>
+                  </details>
                 </>
               )}
-            </div>
-            <div className="forecast-panel">
+            </section>
+            <section
+              className="forecast-panel"
+              hidden={!plan || sidebarView !== 'weather'}
+              aria-label="Corridor forecast"
+            >
               <div className="forecast-heading">
                 <div>
                   <CloudSun size={20} aria-hidden="true" />
@@ -459,16 +443,143 @@ export default function App() {
                   </span>
                 ))}
               </div>
+              {plan && (
+                <div className="forecast-freshness">
+                  <strong>Forecast retrieved</strong>
+                  <span>
+                    {plan.sources.forecast_retrieved_at
+                      ? dateTime(plan.sources.forecast_retrieved_at)
+                      : 'Timestamp unavailable'}
+                  </span>
+                  <p>
+                    Oldest retrieval across weather batches. This is not the model issue time.
+                    Cached for up to 10 minutes; displayed trips do not refresh automatically.
+                  </p>
+                </div>
+              )}
+              <details className="method">
+                <summary>About the weather layer</summary>
+                <p>
+                  Colors interpolate wind, rain, and snow between forecast samples, then apply the
+                  supplied load rules. This is a visual estimate, not radar. Route colors and
+                  recommendations use checkpoint forecasts at arrival, independently of this slider.
+                </p>
+              </details>
               <p className="forecast-source">
-                Hourly forecast:{' '}
                 <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
                   Open-Meteo
                 </a>{' '}
-                · sampled grid · cached up to 10 min
+                · interpolated hourly forecast
               </p>
-            </div>
+            </section>
+            <details className="policy">
+              <summary>Weather & load thresholds</summary>
+              <div className="policy-content">
+                <p>The highest wind, rain, or snow risk determines checkpoint risk.</p>
+                <table>
+                  <caption>Thresholds (mph and in/hr)</caption>
+                  <thead>
+                    <tr>
+                      <th>Risk</th>
+                      <th>Wind</th>
+                      <th>Rain</th>
+                      <th>Snow</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ['Low', '<25', '<0.10', '<0.5'],
+                      ['Moderate', '25–<35', '0.10–<0.25', '0.5–<1'],
+                      ['High', '35–<45', '0.25–<0.50', '1–<2'],
+                      ['Severe', '45–<55', '0.50–1.00', '2–3'],
+                      ['No Travel', '≥55', '>1.00', '>3'],
+                    ].map((row) => (
+                      <tr key={row[0]}>
+                        {row.map((cell, i) =>
+                          i ? <td key={i}>{cell}</td> : <th key={i}>{cell}</th>,
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p>
+                  45–&lt;55 mph + load &gt;30,000 lb: No Travel.
+                  <br />
+                  35–&lt;45 mph + load &gt;40,000 lb: Severe.
+                </p>
+              </div>
+            </details>
+            <details className="about">
+              <summary>
+                About this tool <ChevronDown size={15} aria-hidden="true" />
+              </summary>
+              <div className="about-panel">
+                <strong>Plan with weather in view.</strong>
+                <p>
+                  This assessment compares forecast risk using the supplied wind, rain, snow, and
+                  load rules. It does not certify a route as safe for a truck.
+                </p>
+                <p>
+                  Road routes: OSRM car profile. Forecasts: Open-Meteo. Truck clearances, road
+                  restrictions, traffic, breaks, and hours of service are not included.
+                </p>
+              </div>
+            </details>
+            <p className="sidebar-warning">
+              Planning estimate only. Check truck restrictions and official road advisories before
+              travel.
+            </p>
+          </div>
+        </aside>
+        <div className="workspace">
+          <section className="map-section" aria-label="Trip map">
+            <RouteMap
+              plan={plan}
+              selectedId={selectedId}
+              hour={hour}
+              heatmap={heatmap}
+              focusIndex={focusIndex}
+              onSelect={selectRoute}
+              fitRequest={fitRequest}
+            />
           </section>
-          <section className="checkpoints-section" aria-labelledby="checkpoints-heading">
+          <div className="map-toolbar">
+            <span>
+              {route
+                ? `${route.name} · ${duration(route.duration_s)} · ${Math.round(route.distance_miles)} mi`
+                : 'Compare a trip to see routes and weather'}
+            </span>
+            <div>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  setFocusIndex(null);
+                  setFitRequest(fitRequest + 1);
+                }}
+                disabled={!plan}
+              >
+                Fit routes
+              </button>
+              <button
+                type="button"
+                className="checkpoint-toggle"
+                aria-expanded={checkpointsOpen}
+                aria-controls="checkpoint-details"
+                onClick={() => setCheckpointsOpen(!checkpointsOpen)}
+                disabled={!route}
+              >
+                Checkpoints{route ? ` (${route.checkpoints.length})` : ''}{' '}
+                <ChevronDown size={15} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <section
+            id="checkpoint-details"
+            className="checkpoints-section"
+            hidden={!checkpointsOpen}
+            aria-labelledby="checkpoints-heading"
+          >
             <div className="checkpoint-heading">
               <div>
                 <h2 id="checkpoints-heading">
@@ -548,13 +659,6 @@ export default function App() {
               </div>
             )}
           </section>
-          <footer className="workspace-footer">
-            <ShieldAlert size={15} aria-hidden="true" />
-            <span>
-              Planning estimate only. Check truck restrictions and official road advisories before
-              travel.
-            </span>
-          </footer>
         </div>
       </main>
     </div>

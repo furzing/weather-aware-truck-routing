@@ -12,6 +12,19 @@ async (page) => {
   const recommended = page.locator('.route-option').filter({ has: page.locator('.recommended') });
   if (await recommended.count()) check(await recommended.getAttribute('aria-pressed') === 'true', 'Recommended route must be selected');
   check(await page.locator('.route-option').count() === 3, 'Three routes must be shown');
+  check(!await page.locator('#checkpoint-details').isVisible(), 'Checkpoints must be collapsed by default');
+  await page.setViewportSize({ width: 1365, height: 679 });
+  const layout = await page.evaluate(() => {
+    const map = document.querySelector('.map').getBoundingClientRect();
+    const header = document.querySelector('.app-header').getBoundingClientRect();
+    const sidebar = document.querySelector('.sidebar').getBoundingClientRect();
+    return { mapHeight: map.height, mapTop: map.top, headerWidth: header.width, sidebarWidth: sidebar.width };
+  });
+  check(layout.mapTop === 0 && layout.mapHeight >= 620, `Map must occupy full workspace height: ${JSON.stringify(layout)}`);
+  check(layout.headerWidth <= layout.sidebarWidth, 'Header must stop at the sidebar boundary');
+  await page.screenshot({ path: 'output/playwright/map-first-1365.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: /^Checkpoints \(/ }).click();
   const rows25 = await page.locator('.checkpoint-table tbody tr').count();
   const route2 = page.getByRole('button', { name: /^2 Route 2/ });
   await route2.click();
@@ -23,6 +36,9 @@ async (page) => {
   const countAPI = request => { if (request.url().includes('/api/')) apiCalls++; };
   page.on('request', countAPI);
   const etaBefore = await page.locator('.checkpoint-table tbody tr').first().innerText();
+  await page.getByRole('button', { name: 'Weather', exact: true }).click();
+  await page.getByText('Forecast retrieved', { exact: true }).waitFor();
+  check(await page.locator('.weather-field').count() === 1, 'Interpolated forecast canvas must render');
   const slider = page.getByRole('slider', { name: 'Forecast hour after departure' });
   await slider.focus();
   await slider.press('End');
@@ -33,6 +49,8 @@ async (page) => {
   check(apiCalls === 0, 'Slider and layer toggle must make no API requests');
   page.off('request', countAPI);
 
+  await page.getByRole('button', { name: 'Routes', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit trip', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Load weight (lb)' }).fill('41000');
   await page.getByText('Trip inputs changed. Compare again to update the results.').waitFor();
   await page.route('**/api/plan', route => route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: { code: 'provider_unavailable', message: 'Forecast unavailable — injected browser test.' } }) }));
@@ -69,6 +87,42 @@ async (page) => {
   await page.screenshot({ path: 'output/playwright/mobile-full.png', fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
 
+  // A spatially varying synthetic field tests rendering; it is not live severe weather.
+  await page.getByRole('button', { name: 'Edit trip', exact: true }).click();
+  await page.route('**/api/plan', async route => {
+    const upstream = await route.fetch({ timeout: 95000 });
+    check(upstream.status() === 200, 'Need a valid plan for the field rendering fixture');
+    const data = await upstream.json();
+    const longitudes = data.corridor.map(c => c.coordinate[0]);
+    const left = Math.min(...longitudes), width = Math.max(...longitudes) - left;
+    for (const c of data.corridor) for (const hour of c.hours) {
+      hour.wind_mph = 10 + 50 * (c.coordinate[0] - left) / width;
+      hour.rain_in = 0; hour.snow_in = 0;
+      hour.level = hour.wind_mph >= 55 || (hour.wind_mph >= 45 && data.load_lb > 30000) ? 4
+        : hour.wind_mph >= 45 || (hour.wind_mph >= 35 && data.load_lb > 40000) ? 3
+        : hour.wind_mph >= 35 ? 2 : hour.wind_mph >= 25 ? 1 : 0;
+    }
+    await route.fulfill({ response: upstream, json: data });
+  });
+  await page.getByRole('button', { name: 'Compare routes', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit trip', exact: true }).waitFor({ timeout: 95000 });
+  await page.getByRole('button', { name: 'Weather', exact: true }).click();
+  await page.getByRole('button', { name: /^Checkpoints \(/ }).click();
+  const fieldColors = await page.locator('.weather-field').evaluate(canvas => {
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const palette = [[32,114,88], [166,106,9], [210,91,35], [177,47,66], [98,42,112]];
+    const seen = new Set();
+    for (let i=0; i<data.length; i+=4) if (data[i+3] > 10) {
+      const index = palette.findIndex(rgb => rgb.every((v,j) => Math.abs(v-data[i+j]) < 8));
+      if (index >= 0) seen.add(index);
+    }
+    return [...seen];
+  });
+  check(fieldColors.length >= 3, `Expected multiple weather bands in synthetic field: ${fieldColors}`);
+  await page.screenshot({ path: 'output/playwright/weather-field-injected.png' });
+  await page.unroute('**/api/plan');
+  await page.getByRole('button', { name: 'Routes', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit trip', exact: true }).click();
   await page.route('**/api/plan', async route => {
     const upstream = await route.fetch({ timeout: 95000 });
     check(upstream.status() === 200, 'Need a valid upstream response to inject blocked UI scenario');
@@ -94,5 +148,5 @@ async (page) => {
   await page.getByRole('button', { name: 'Compare routes', exact: true }).click();
   await page.locator('.route-option').first().waitFor({ timeout: 95000 });
   await page.screenshot({ path: 'output/playwright/desktop.png' });
-  return { passed: true, desktop: '1440×1000', mobileWidths: [390, 320], sliderAPICalls: apiCalls, axeViolations: axe.violations.length, javascriptErrors: errors, injectedScenarios: ['provider failure', 'all routes No Travel'] };
+  return { passed: true, mapLayoutAt1365x679: layout, desktop: '1440×1000', mobileWidths: [390, 320], sliderAPICalls: apiCalls, axeViolations: axe.violations.length, javascriptErrors: errors, injectedScenarios: ['provider failure', 'all routes No Travel', 'spatial forecast field'], fieldColors };
 }

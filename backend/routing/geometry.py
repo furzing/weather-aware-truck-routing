@@ -4,6 +4,26 @@ import math
 METERS_PER_MILE = 1609.344
 
 
+def road_overlap(a, b):
+    """Shared OSRM geometry length / longer geometry; not lane-level identity."""
+
+    def edges(route):
+        result = {}
+        coordinates = route["geometry"]["coordinates"]
+        for start, end in zip(coordinates, coordinates[1:]):
+            key = tuple(sorted(tuple(round(v, 5) for v in p) for p in (start, end)))
+            result[key] = result.get(key, 0) + distance(start, end)
+        return result
+
+    left, right = edges(a), edges(b)
+    total = max(sum(left.values()), sum(right.values()))
+    return (
+        sum(min(length, right.get(edge, 0)) for edge, length in left.items()) / total
+        if total
+        else 1
+    )
+
+
 def distance(a, b):
     lon1, lat1, lon2, lat2 = map(math.radians, (*a, *b))
     h = (
@@ -14,9 +34,25 @@ def distance(a, b):
 
 
 def checkpoints(route: dict, spacing: int) -> list[dict]:
-    if any(not math.isfinite(route[k]) or route[k] <= 0 for k in ("distance", "duration")):
+    if any(
+        type(route[k]) not in (int, float) or not math.isfinite(route[k]) or route[k] <= 0
+        for k in ("distance", "duration")
+    ):
         raise ValueError("Routing service returned invalid trip totals.")
     coords = route["geometry"]["coordinates"]
+    if (
+        route["geometry"]["type"] != "LineString"
+        or not isinstance(coords, list)
+        or len(coords) < 2
+        or any(
+            not isinstance(point, (list, tuple))
+            or len(point) != 2
+            or any(type(value) not in (int, float) or not math.isfinite(value) for value in point)
+            or not (-180 <= point[0] <= 180 and -90 <= point[1] <= 90)
+            for point in coords
+        )
+    ):
+        raise ValueError("Routing service returned invalid geographic coordinates.")
     distances = [d for leg in route["legs"] for d in leg["annotation"]["distance"]]
     durations = [d for leg in route["legs"] for d in leg["annotation"]["duration"]]
     if len(coords) != len(distances) + 1 or len(durations) != len(distances):
@@ -25,7 +61,14 @@ def checkpoints(route: dict, spacing: int) -> list[dict]:
         raise ValueError("Routing service returned an empty journey.")
     ds, ts = [0.0], [0.0]
     for d, t in zip(distances, durations):
-        if not math.isfinite(d) or not math.isfinite(t) or d < 0 or t < 0:
+        if (
+            type(d) not in (int, float)
+            or type(t) not in (int, float)
+            or not math.isfinite(d)
+            or not math.isfinite(t)
+            or d < 0
+            or t < 0
+        ):
             raise ValueError("Routing service returned invalid segment values.")
         ds.append(ds[-1] + d)
         ts.append(ts[-1] + t)

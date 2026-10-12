@@ -53,19 +53,46 @@ def summarize(checkpoints: list[dict], duration_s: float) -> dict:
     }
 
 
+def priority(route):
+    s = route["summary"]
+    return (
+        s["risk_miles"]["Severe"],
+        s["risk_miles"]["High"],
+        s["average_risk"],
+        s["duration_s"],
+        route["id"],
+    )
+
+
 def recommendation(routes: list[dict]) -> str | None:
     eligible = [r for r in routes if r["summary"]["eligible"]]
     if not eligible:
         return None
 
-    def priority(route):
-        s = route["summary"]
-        return (
-            s["risk_miles"]["Severe"],
-            s["risk_miles"]["High"],
-            s["average_risk"],
-            s["duration_s"],
-            route["id"],
-        )
-
     return min(eligible, key=priority)["id"]
+
+
+def explain_recommendation(routes):
+    eligible = sorted((r for r in routes if r["summary"]["eligible"]), key=priority)
+    if not eligible:
+        return "Every route includes No Travel conditions. Delay departure and check again."
+    winner = eligible[0]
+    prefix = f"{winner['name']} is recommended. "
+    if len(eligible) == 1:
+        return prefix + "It is the only route without No Travel checkpoints."
+    runner_up = eligible[1]
+    names = ("Severe exposure", "High exposure", "average risk", "driving time")
+    for i, name in enumerate(names):
+        a, b = priority(winner)[i], priority(runner_up)[i]
+        if a != b:
+            if i < 2:
+                detail = f"{a:.1f} vs {b:.1f} miles"
+            elif i == 2:
+                detail = f"{a:.3f} vs {b:.3f} on the ordinal 0–4 scale"
+            else:
+                detail = f"{a / 60:.1f} vs {b / 60:.1f} minutes"
+            return (
+                prefix
+                + f"Lower {name} than {runner_up['name']}: {detail}. Earlier ranking criteria are tied."
+            )
+    return prefix + "Eligible routes tie on all four criteria; route ID resolves the tie."
