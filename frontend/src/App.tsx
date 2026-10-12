@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { CitySearch } from './CitySearch';
 import { RouteMap } from './RouteMap';
+import { Rules } from './Rules';
 import {
   colors,
   dateTime,
@@ -35,6 +36,38 @@ function RiskBadge({ level }: { level: number }) {
 }
 
 export default function App() {
+  const [page, setPage] = useState(() =>
+    window.location.pathname.startsWith('/rules') ? 'rules' : 'planner',
+  );
+  useEffect(() => {
+    const onPopState = () =>
+      setPage(window.location.pathname.startsWith('/rules') ? 'rules' : 'planner');
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  useEffect(() => {
+    document.title = page === 'rules' ? 'Rules | Spotter route planner' : 'Spotter | Route planner';
+    const frame = window.requestAnimationFrame(() => {
+      const target =
+        page === 'rules'
+          ? document.querySelector<HTMLElement>('.rules-intro h1')
+          : document.querySelector<HTMLElement>('.app-shell main');
+      target?.focus({ preventScroll: true });
+      if (page === 'rules' && window.location.hash) {
+        document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+      } else window.scrollTo(0, 0);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [page]);
+
+  function navigate(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
+    event.preventDefault();
+    const url = new URL(event.currentTarget.href);
+    window.history.pushState(null, '', url.pathname + url.hash);
+    setPage(url.pathname.startsWith('/rules') ? 'rules' : 'planner');
+  }
   const [origin, setOrigin] = useState<Place | null>({
     name: 'Chicago, Illinois, United States',
     longitude: -87.6298,
@@ -126,9 +159,11 @@ export default function App() {
     }
   }
 
+  if (page === 'rules') return <Rules onNavigate={navigate} />;
+
   return (
     <div className="app-shell">
-      <main>
+      <main tabIndex={-1} aria-label="Route planner">
         <aside
           className={`sidebar ${mobilePanel ? 'mobile-open' : ''}`}
           aria-label="Trip planning and route comparison"
@@ -152,6 +187,12 @@ export default function App() {
             </button>
           </header>
           <div className="sidebar-body">
+            <nav className="planner-navigation" aria-label="Planner navigation">
+              <span aria-current="page">Planner</span>
+              <a href="/rules" onClick={navigate}>
+                Rules
+              </a>
+            </nav>
             <section className="trip-section">
               {plan && !editingTrip && (
                 <div className="trip-summary">
@@ -337,7 +378,7 @@ export default function App() {
                           )}
                         </div>
                         <div className="route-stats">
-                          <span>{duration(r.duration_s)}</span>
+                          <span>{duration(r.duration_s)} driving</span>
                           <span>{Math.round(r.distance_miles)} mi</span>
                           <RiskBadge level={r.summary.max_risk} />
                         </div>
@@ -367,26 +408,19 @@ export default function App() {
                     ))}
                   </div>
                   <p className="recommendation-explanation">{plan.recommendation_reason}</p>
-                  <details className="method">
-                    <summary>How the recommendation works</summary>
-                    <p>
-                      Exclude No Travel routes. Compare Severe miles, High miles, average risk, then
-                      driving time, in that order.
+                  <p className="driving-note">
+                    Arrival estimates exclude breaks and rest. Driver clocks are not checked.{' '}
+                    <a href="/rules#hos" onClick={navigate}>
+                      ELD & hours of service
+                    </a>
+                  </p>
+                  {route && route.duration_s > 8 * 3600 && (
+                    <p className="driving-note" aria-live="polite">
+                      {route.duration_s > 11 * 3600
+                        ? 'This route exceeds the standard U.S. 11-hour driving allowance for one driver. Schedule qualifying rest or a driver change before using these arrival times.'
+                        : 'This route exceeds 8 hours of estimated driving. Check the driver’s break timing against their duty records.'}
                     </p>
-                    <p>
-                      Average risk is weighted by miles, on an ordinal 0–4 scale. Each interval uses
-                      the worse of its two checkpoints. It is an estimate, not an accident
-                      probability.
-                    </p>
-                    <p>
-                      Sampling can miss localized hazards between checkpoints. A 10-mile interval
-                      provides denser checks.
-                    </p>
-                    <p>
-                      The forecast slider changes the corridor view. It does not change checkpoint
-                      ETAs or recompute this trip.
-                    </p>
-                  </details>
+                  )}
                 </>
               )}
             </section>
@@ -457,14 +491,11 @@ export default function App() {
                   </p>
                 </div>
               )}
-              <details className="method">
-                <summary>About the weather layer</summary>
-                <p>
-                  Colors interpolate wind, rain, and snow between forecast samples, then apply the
-                  supplied load rules. This is a visual estimate, not radar. Route colors and
-                  recommendations use checkpoint forecasts at arrival, independently of this slider.
-                </p>
-              </details>
+              <p className="weather-rules-link">
+                <a href="/rules#weather" onClick={navigate}>
+                  Weather updates & map guide
+                </a>
+              </p>
               <p className="forecast-source">
                 <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
                   Open-Meteo
@@ -472,59 +503,6 @@ export default function App() {
                 · interpolated hourly forecast
               </p>
             </section>
-            <details className="policy">
-              <summary>Weather & load thresholds</summary>
-              <div className="policy-content">
-                <p>The highest wind, rain, or snow risk determines checkpoint risk.</p>
-                <table>
-                  <caption>Thresholds (mph and in/hr)</caption>
-                  <thead>
-                    <tr>
-                      <th>Risk</th>
-                      <th>Wind</th>
-                      <th>Rain</th>
-                      <th>Snow</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      ['Low', '<25', '<0.10', '<0.5'],
-                      ['Moderate', '25–<35', '0.10–<0.25', '0.5–<1'],
-                      ['High', '35–<45', '0.25–<0.50', '1–<2'],
-                      ['Severe', '45–<55', '0.50–1.00', '2–3'],
-                      ['No Travel', '≥55', '>1.00', '>3'],
-                    ].map((row) => (
-                      <tr key={row[0]}>
-                        {row.map((cell, i) =>
-                          i ? <td key={i}>{cell}</td> : <th key={i}>{cell}</th>,
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p>
-                  45–&lt;55 mph + load &gt;30,000 lb: No Travel.
-                  <br />
-                  35–&lt;45 mph + load &gt;40,000 lb: Severe.
-                </p>
-              </div>
-            </details>
-            <details className="about">
-              <summary>
-                About this tool <ChevronDown size={15} aria-hidden="true" />
-              </summary>
-              <div className="about-panel">
-                <strong>Plan with weather in view.</strong>
-                <p>
-                  This assessment compares forecast risk using the supplied wind, rain, snow, and
-                  load rules. It does not certify a route as safe for a truck.
-                </p>
-                <p>
-                  Road routes: OSRM car profile. Forecasts: Open-Meteo. Truck clearances, road
-                  restrictions, traffic, breaks, and hours of service are not included.
-                </p>
-              </div>
-            </details>
             <p className="sidebar-warning">
               Planning estimate only. Check truck restrictions and official road advisories before
               travel.
@@ -587,13 +565,13 @@ export default function App() {
                 </h2>
                 <p>
                   {route
-                    ? `Forecast at estimated arrival · every ${plan?.spacing_miles} miles · times in ${timezone}`
+                    ? `Arrival excludes breaks and rest · every ${plan?.spacing_miles} miles · times in ${timezone}`
                     : 'Arrival times and weather appear here after comparing routes.'}
                 </p>
               </div>
               {route && (
                 <span className="arrival">
-                  <Clock3 size={16} aria-hidden="true" /> Arrival {dateTime(route.arrival)}
+                  <Clock3 size={16} aria-hidden="true" /> Est. arrival {dateTime(route.arrival)}
                 </span>
               )}
             </div>

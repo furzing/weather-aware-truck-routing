@@ -25,6 +25,11 @@ with httpx.Client(base_url=base, timeout=10) as client:
     page.raise_for_status()
     assert page.headers["content-type"].startswith("text/html")
     assert page.headers["cache-control"] == "no-cache"
+    for route in ("/rules", "/rules/"):
+        rules = client.get(route)
+        rules.raise_for_status()
+        assert rules.text == page.text
+        assert rules.headers["cache-control"] == "no-cache"
     parser = Assets()
     parser.feed(page.text)
     assert len(parser.paths) >= 2
@@ -43,4 +48,6 @@ with httpx.Client(base_url=base, timeout=10) as client:
     assert client.get("/api/health").json()["status"] == "ok"
     assert client.get("/missing").status_code == 404
     assert client.post("/api/plan", json={}).status_code == 400
-    print("PASS: HTML revalidation; immutable JS/CSS; local font; health; 404; invalid JSON trip.")
+    print(
+        "PASS: planner/rules deep links; HTML revalidation; immutable JS/CSS; local font; health; 404; invalid JSON trip."
+    )

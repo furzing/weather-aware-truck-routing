@@ -30,6 +30,24 @@ Each cached provider response retains its original retrieval timestamp. `sources
 
 The recommendation explanation compares the winner with the next eligible route and names the first differing ranking criterion and values. Earlier criteria are tied. A sole eligible route and an exact four-criterion tie receive separate explanations. The stable ID is disclosed as the final tie resolver.
 
+## ELD and scheduling scope
+
+Rules (`/rules`) separates the assessment policy from regulatory guidance. It describes the general U.S. federal interstate property-carrying baseline; it is not a rules engine for every jurisdiction or exemption. No Spotter ELD capability or integration is assumed. This app reads no duty logs, does not authenticate a driver, and does not establish remaining driving/window/break/cycle availability.
+
+Route durations and checkpoint arrivals remain continuous-driving car-profile estimates. The weather ranking is unchanged. Contextual cues above 8 and 11 estimated driving hours are prompts to review a schedule, not violation findings. A future duty-aware planner must consume authenticated, current duty history and applicable rules, schedule stops/rest, and recompute weather at the revised ETAs. Simply adding a fixed break to every trip would misrepresent remaining clocks, loading time, sleeper-berth rules, and multi-day cycles.
+
+The page explicitly avoids preallocating adverse-condition extensions. The applicable test concerns conditions unknown or not reasonably knowable before the relevant driving/dispatch point; a forecast warning does not itself grant additional hours. ELD edits, certification, and driver approval remain in the actual ELD. No compliance records are created here.
+
+Primary sources checked 13 October 2026:
+
+- [FMCSA HOS summary](https://www.fmcsa.dot.gov/regulations/hours-service/summary-hours-service-regulations): general property-carrying limits and qualifying non-driving breaks.
+- [49 CFR 395.1](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-395/subpart-A/section-395.1) and [395.2](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-395/subpart-A/section-395.2): exceptions and adverse-condition definition.
+- [49 CFR 395.30](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-395/subpart-B/section-395.30) and [FMCSA ELD FAQs](https://eld.fmcsa.dot.gov/FAQ/Topics?name=Recording_HOS_data): driver certification, annotations, edits, and original records.
+- [FMCSA personal conveyance](https://www.fmcsa.dot.gov/regulations/hours-service/personal-conveyance): personal use versus advancing carrier operations.
+- [49 CFR 392.14](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-392/subpart-B/section-392.14): extreme caution, reduced speed, and discontinuing operation in sufficiently dangerous conditions.
+
+The eCFR pages available at review displayed Title 49 current through 8 October 2026. The FMCSA summary is older guidance, checked against those scope/definition provisions; emergency declarations, local rules, and individual exemptions are not monitored by this app.
+
 ## Request example
 
 ```json

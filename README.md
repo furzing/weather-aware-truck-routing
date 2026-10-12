@@ -32,6 +32,9 @@ Then open http://127.0.0.1:5173. Vite proxies `/api` to Django. Do not use the D
 2. Set departure in the next 72 hours, load weight in pounds, and checkpoint spacing of 10, 25, or 50 miles. Dates and ETAs display in the browser's labelled timezone; requests and calculations use UTC.
 3. Compare routes. Inputs collapse to a summary; Edit trip reopens them. Select a route in the Routes view. The map stays unobstructed; open Checkpoints in the bottom action strip to inspect arrival times and risk explanations. A table checkpoint pans the map; Fit routes restores the whole trip.
 4. Open Weather in the sidebar and move the forecast slider from departure through +48 hours. It updates the preloaded, interpolated weather field without making forecast requests. Route risk remains tied to checkpoint ETAs. The sidebar shows when forecasts were retrieved and explains the 10-minute cache; displayed trips do not automatically refresh.
+5. Open **Rules** at `/rules` for ranking mechanics, weather/load thresholds, forecast updates, U.S. federal property-carrying HOS guidance, ELD record practices, and departure checks. Returning to the planner preserves the current trip in memory. Reloading the app starts a new session.
+
+Arrival estimates assume continuous driving and exclude breaks/rest. No ELD is connected and driver clocks are not evaluated. Selected routes above eight estimated driving hours prompt a break review; those above eleven prompt rest or driver-change planning under the standard U.S. rules. These cues do not establish violations or legal arrival times, and they do not alter the assessment's weather ranking.
 
 All three routes show arrival-based risk colors and checkpoints. The selected route has a heavier outline. If every route contains No Travel conditions, the app recommends delaying departure. Provider failures never become synthetic weather or an apparently safe route.
 
@@ -52,9 +55,12 @@ Browser checks (with both development servers running) use Playwright CLI:
 ```powershell
 npx --yes --package @playwright/cli playwright-cli -s=spotter open http://127.0.0.1:5173 --headed
 npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/browser-checks.js
+npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/rules-browser-checks.js
 ```
 
 This check makes a few live local planning requests; its failure and No Travel UI cases are explicitly injected. It also checks keyboard controls, mobile overflow, and a populated-state axe accessibility scan. Screenshots go to ignored `output/playwright/`.
+
+The Rules check covers direct links, refresh, browser history, preserved route/forecast selection, section navigation, mobile layout, accessibility, and four injected duration-boundary cases. To check the production build, navigate the CLI session to port 8000 before running it; keep Vite running for the local axe script.
 
 With the local server running, one live provider smoke check:
 
