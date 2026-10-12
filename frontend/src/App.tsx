@@ -7,14 +7,19 @@ import {
   CloudSun,
   Layers,
   LoaderCircle,
+  Play,
   Route as RouteIcon,
   ShieldAlert,
   Truck,
   Wind,
+  X,
 } from 'lucide-react';
 import { CitySearch } from './CitySearch';
 import { RouteMap } from './RouteMap';
 import { Rules } from './Rules';
+import { CheckpointDrawer } from './CheckpointDrawer';
+import { SimulationControls } from './SimulationControls';
+import { hasTiming, initialSimulation, positionAt } from './simulation';
 import {
   colors,
   dateTime,
@@ -39,9 +44,12 @@ export default function App() {
   const [page, setPage] = useState(() =>
     window.location.pathname.startsWith('/rules') ? 'rules' : 'planner',
   );
+  const [simulation, setSimulation] = useState(initialSimulation);
   useEffect(() => {
-    const onPopState = () =>
+    const onPopState = () => {
+      setSimulation((previous) => ({ ...previous, playing: false }));
       setPage(window.location.pathname.startsWith('/rules') ? 'rules' : 'planner');
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -66,6 +74,7 @@ export default function App() {
     event.preventDefault();
     const url = new URL(event.currentTarget.href);
     window.history.pushState(null, '', url.pathname + url.hash);
+    setSimulation((previous) => ({ ...previous, playing: false }));
     setPage(url.pathname.startsWith('/rules') ? 'rules' : 'planner');
   }
   const [origin, setOrigin] = useState<Place | null>({
@@ -99,10 +108,47 @@ export default function App() {
   const currentInputs = JSON.stringify({ origin, destination, departure, weight, spacing });
   const [plannedInputs, setPlannedInputs] = useState('');
   const dirty = !!plan && currentInputs !== plannedInputs;
+  const driveDuration = route?.duration_s ?? 0;
+  const fieldHour = simulation.visible ? simulation.elapsed / 3600 : hour;
+  const driverPosition = simulation.visible && route ? positionAt(route, simulation.elapsed) : null;
+  useEffect(() => {
+    if (!simulation.playing || page !== 'planner') return;
+    let frame = 0,
+      previous = performance.now();
+    const tick = (now: number) => {
+      if (now - previous >= 80) {
+        const delta = Math.min(0.25, (now - previous) / 1000) * simulation.rate;
+        previous = now;
+        setSimulation((current) => {
+          if (!current.playing) return current;
+          const elapsed = Math.min(driveDuration, current.elapsed + delta);
+          return { ...current, elapsed, playing: elapsed < driveDuration };
+        });
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    const pauseWhenHidden = () => {
+      if (document.hidden) setSimulation((current) => ({ ...current, playing: false }));
+    };
+    document.addEventListener('visibilitychange', pauseWhenHidden);
+    frame = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', pauseWhenHidden);
+    };
+  }, [simulation.playing, simulation.rate, driveDuration, page]);
+
+  function closeCheckpoints() {
+    setCheckpointsOpen(false);
+    window.requestAnimationFrame(() =>
+      document.querySelector<HTMLButtonElement>('.checkpoint-toggle')?.focus(),
+    );
+  }
 
   function selectRoute(id: string) {
     setSelectedId(id);
     setFocusIndex(null);
+    setSimulation((current) => ({ ...current, playing: false, elapsed: 0 }));
   }
   async function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -119,6 +165,7 @@ export default function App() {
     controller.current = request;
     const timeout = window.setTimeout(() => request.abort('timeout'), 95000);
     setBusy(true);
+    setSimulation((current) => ({ ...current, playing: false }));
     try {
       const response = await fetch('/api/plan', {
         method: 'POST',
@@ -143,6 +190,7 @@ export default function App() {
       setMobilePanel(false);
       setSelectedId(parsed.data.recommended_id ?? parsed.data.routes[0].id);
       setHour(0);
+      setSimulation(initialSimulation);
       setFocusIndex(null);
       setPlannedInputs(currentInputs);
     } catch (e) {
@@ -186,6 +234,35 @@ export default function App() {
               Trip & weather
             </button>
           </header>
+          {plan && (
+            <nav className="mobile-planning-actions" aria-label="Mobile planning views">
+              <button
+                type="button"
+                aria-pressed={mobilePanel && sidebarView === 'routes' && !editingTrip}
+                onClick={() => {
+                  setSidebarView('routes');
+                  setEditingTrip(false);
+                  setMobilePanel(!(mobilePanel && sidebarView === 'routes' && !editingTrip));
+                }}
+              >
+                Show routes
+              </button>
+              <button
+                type="button"
+                aria-pressed={mobilePanel && sidebarView === 'weather' && !editingTrip}
+                onClick={() => {
+                  setSidebarView('weather');
+                  setEditingTrip(false);
+                  setMobilePanel(!(mobilePanel && sidebarView === 'weather' && !editingTrip));
+                }}
+              >
+                Show weather
+              </button>
+              <a href="/rules" onClick={navigate}>
+                Rules
+              </a>
+            </nav>
+          )}
           <div className="sidebar-body">
             <nav className="planner-navigation" aria-label="Planner navigation">
               <span aria-current="page">Planner</span>
@@ -446,9 +523,13 @@ export default function App() {
               </div>
               <div className="forecast-time">
                 <span>
-                  {plan ? dateTime(plan.forecast_hours[hour]) : 'Forecast starts at departure'}
+                  {plan
+                    ? dateTime(
+                        new Date(Date.parse(plan.departure) + fieldHour * 3600000).toISOString(),
+                      )
+                    : 'Forecast starts at departure'}
                 </span>
-                <strong>+{hour}h</strong>
+                <strong>+{Number(fieldHour.toFixed(1))}h</strong>
               </div>
               <input
                 aria-label="Forecast hour after departure"
@@ -456,11 +537,14 @@ export default function App() {
                 type="range"
                 min="0"
                 max="48"
-                step="1"
-                value={hour}
-                onChange={(e) => setHour(Number(e.target.value))}
+                step="0.1"
+                value={Number(fieldHour.toFixed(1))}
+                onChange={(e) => {
+                  setHour(Number(e.target.value));
+                  setSimulation((current) => ({ ...current, visible: false, playing: false }));
+                }}
                 disabled={!plan}
-                aria-valuetext={`${hour} hours after departure`}
+                aria-valuetext={`${Number(fieldHour.toFixed(1))} hours after departure`}
               />
               <div className="slider-labels">
                 <span>Departure</span>
@@ -514,13 +598,29 @@ export default function App() {
             <RouteMap
               plan={plan}
               selectedId={selectedId}
-              hour={hour}
+              hour={fieldHour}
               heatmap={heatmap}
               focusIndex={focusIndex}
               onSelect={selectRoute}
               fitRequest={fitRequest}
+              driverPosition={driverPosition}
             />
           </section>
+          {simulation.visible && plan && route && (
+            <SimulationControls
+              plan={plan}
+              route={route}
+              state={simulation}
+              onChange={setSimulation}
+              onClose={() => {
+                setSimulation((current) => ({ ...current, visible: false, playing: false }));
+                setHour(Math.min(48, Math.floor(simulation.elapsed / 3600)));
+                window.requestAnimationFrame(() =>
+                  document.querySelector<HTMLButtonElement>('.simulate-button')?.focus(),
+                );
+              }}
+            />
+          )}
           <div className="map-toolbar">
             <span>
               {route
@@ -528,6 +628,28 @@ export default function App() {
                 : 'Compare a trip to see routes and weather'}
             </span>
             <div>
+              {!simulation.visible && (
+                <button
+                  type="button"
+                  className="simulate-button"
+                  disabled={!route || !hasTiming(route) || dirty || busy}
+                  aria-expanded={simulation.visible}
+                  onClick={() => {
+                    setSimulation((current) => ({
+                      ...current,
+                      visible: true,
+                      playing: true,
+                      elapsed: current.elapsed >= driveDuration ? 0 : current.elapsed,
+                    }));
+                    setHeatmap(true);
+                    setMobilePanel(false);
+                    setCheckpointsOpen(false);
+                    setFocusIndex(null);
+                  }}
+                >
+                  <Play size={15} aria-hidden="true" /> Simulate drive
+                </button>
+              )}
               <button
                 type="button"
                 className="text-button"
@@ -544,7 +666,11 @@ export default function App() {
                 className="checkpoint-toggle"
                 aria-expanded={checkpointsOpen}
                 aria-controls="checkpoint-details"
-                onClick={() => setCheckpointsOpen(!checkpointsOpen)}
+                onClick={() => {
+                  setCheckpointsOpen(!checkpointsOpen);
+                  setMobilePanel(false);
+                  setSimulation((current) => ({ ...current, visible: false, playing: false }));
+                }}
                 disabled={!route}
               >
                 Checkpoints{route ? ` (${route.checkpoints.length})` : ''}{' '}
@@ -552,12 +678,7 @@ export default function App() {
               </button>
             </div>
           </div>
-          <section
-            id="checkpoint-details"
-            className="checkpoints-section"
-            hidden={!checkpointsOpen}
-            aria-labelledby="checkpoints-heading"
-          >
+          <CheckpointDrawer open={checkpointsOpen} onClose={closeCheckpoints}>
             <div className="checkpoint-heading">
               <div>
                 <h2 id="checkpoints-heading">
@@ -574,6 +695,14 @@ export default function App() {
                   <Clock3 size={16} aria-hidden="true" /> Est. arrival {dateTime(route.arrival)}
                 </span>
               )}
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Hide checkpoints"
+                onClick={closeCheckpoints}
+              >
+                <X size={18} />
+              </button>
             </div>
             {route ? (
               <div className="table-scroll">
@@ -608,10 +737,10 @@ export default function App() {
                             <ArrowRight size={13} aria-hidden="true" />
                           </button>
                         </td>
-                        <td>{dateTime(p.eta)}</td>
-                        <td>{p.weather.wind_mph.toFixed(1)} mph</td>
-                        <td>{p.weather.rain_in.toFixed(2)} in/hr</td>
-                        <td>{p.weather.snow_in.toFixed(2)} in/hr</td>
+                        <td data-label="ETA">{dateTime(p.eta)}</td>
+                        <td data-label="Wind">{p.weather.wind_mph.toFixed(1)} mph</td>
+                        <td data-label="Rain">{p.weather.rain_in.toFixed(2)} in/hr</td>
+                        <td data-label="Snow">{p.weather.snow_in.toFixed(2)} in/hr</td>
                         <td>
                           <details className="checkpoint-risk">
                             <summary>
@@ -636,7 +765,7 @@ export default function App() {
                 <p>Choose a route to inspect its checkpoints.</p>
               </div>
             )}
-          </section>
+          </CheckpointDrawer>
         </div>
       </main>
     </div>

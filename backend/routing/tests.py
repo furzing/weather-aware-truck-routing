@@ -7,7 +7,7 @@ import httpx
 from django.core.cache import cache
 from django.test import SimpleTestCase
 
-from .geometry import checkpoints
+from .geometry import checkpoints, geometry_elapsed
 from .providers import ProviderError, Providers, weather_at
 from .risk import classify, recommendation, summarize
 from .views import validate
@@ -47,6 +47,14 @@ def forecast(wind=10):
 
 
 class RiskTests(SimpleTestCase):
+    def test_geometry_timing_preserves_leg_turn_cost_scaling_and_duplicate_nodes(self):
+        route = road()
+        route["duration"] = 9000
+        self.assertEqual(geometry_elapsed(route), [0, 2250, 9000])
+        route["geometry"]["coordinates"].append([-86, 42])
+        route["legs"].append({"annotation": {"distance": [0], "duration": [0]}})
+        self.assertEqual(geometry_elapsed(route), [0, 2250, 9000, 9000])
+
     def test_all_threshold_edges_and_strict_no_travel(self):
         for wind, expected in [
             (0, 0),

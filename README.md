@@ -33,6 +33,9 @@ Then open http://127.0.0.1:5173. Vite proxies `/api` to Django. Do not use the D
 3. Compare routes. Inputs collapse to a summary; Edit trip reopens them. Select a route in the Routes view. The map stays unobstructed; open Checkpoints in the bottom action strip to inspect arrival times and risk explanations. A table checkpoint pans the map; Fit routes restores the whole trip.
 4. Open Weather in the sidebar and move the forecast slider from departure through +48 hours. It updates the preloaded, interpolated weather field without making forecast requests. Route risk remains tied to checkpoint ETAs. The sidebar shows when forecasts were retrieved and explains the 10-minute cache; displayed trips do not automatically refresh.
 5. Open **Rules** at `/rules` for ranking mechanics, weather/load thresholds, forecast updates, U.S. federal property-carrying HOS guidance, ELD record practices, and departure checks. Returning to the planner preserves the current trip in memory. Reloading the app starts a new session.
+6. Press **Simulate drive** to advance a truck marker along the selected road using its segment travel times. Forecast time and the weather field advance together. Pause, seek, reset, or change playback speed; arrival stops playback. Route changes and leaving the planner pause it. The conditions at the marker are interpolated display estimates; the next High-or-worse checkpoint retains its original arrival-based assessment.
+
+On phones, Show routes / Show weather opens the controls over the map and closes them with another press. Checkpoints can be resized with the handle or dragged down to hide; the close button also hides them. Keyboard users can focus the handle and use Up/Down to resize, End to expand, or Home/Escape to close. Reduced-motion preferences remove drawer and marker transitions.
 
 Arrival estimates assume continuous driving and exclude breaks/rest. No ELD is connected and driver clocks are not evaluated. Selected routes above eight estimated driving hours prompt a break review; those above eleven prompt rest or driver-change planning under the standard U.S. rules. These cues do not establish violations or legal arrival times, and they do not alter the assessment's weather ranking.
 
@@ -56,11 +59,14 @@ Browser checks (with both development servers running) use Playwright CLI:
 npx --yes --package @playwright/cli playwright-cli -s=spotter open http://127.0.0.1:5173 --headed
 npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/browser-checks.js
 npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/rules-browser-checks.js
+npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/simulation-browser-checks.js
 ```
 
 This check makes a few live local planning requests; its failure and No Travel UI cases are explicitly injected. It also checks keyboard controls, mobile overflow, and a populated-state axe accessibility scan. Screenshots go to ignored `output/playwright/`.
 
 The Rules check covers direct links, refresh, browser history, preserved route/forecast selection, section navigation, mobile layout, accessibility, and four injected duration-boundary cases. To check the production build, navigate the CLI session to port 8000 before running it; keep Vite running for the local axe script.
+
+The simulation check covers real road timing and marker movement, pause/seek/reset/arrival, route changes, navigation, zero playback API requests, drawer mouse/touch/keyboard interaction, and 390×844, 320×667, and 844×390 layouts. An explicitly injected temporal storm checks changing weather colors and retained No Travel exclusions. This tests behavior, not forecast accuracy or physical-phone performance.
 
 With the local server running, one live provider smoke check:
 

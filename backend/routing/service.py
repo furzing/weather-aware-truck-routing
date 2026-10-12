@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from .geometry import checkpoints, corridor
+from .geometry import checkpoints, corridor, geometry_elapsed
 from .providers import ProviderError, Providers, location_key, weather_at
 from .risk import classify, explain_recommendation, recommendation, summarize
 
@@ -49,6 +49,7 @@ def build_plan(data):
                     "name": f"Route {i + 1}",
                     "via_note": raw["via_note"],
                     "geometry": raw["geometry"],
+                    "geometry_elapsed_s": geometry_elapsed(raw),
                     "segments": segments,
                     "distance_miles": raw["distance"] / 1609.344,
                     "duration_s": raw["duration"],

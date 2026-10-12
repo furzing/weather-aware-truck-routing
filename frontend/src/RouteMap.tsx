@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { colors, dateTime, type Plan } from './contracts';
 import { fieldLevel, interpolateWeather } from './weatherField';
+import { forecastAtHour } from './simulation';
 
 const latLng = ([lon, lat]: [number, number]): L.LatLngTuple => [lat, lon];
 
@@ -14,6 +15,7 @@ export function RouteMap({
   focusIndex,
   onSelect,
   fitRequest,
+  driverPosition,
 }: {
   plan: Plan | null;
   selectedId: string;
@@ -22,10 +24,13 @@ export function RouteMap({
   focusIndex: number | null;
   onSelect: (id: string) => void;
   fitRequest: number;
+  driverPosition: [number, number] | null;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const boundsRef = useRef<L.LatLngBounds | null>(null);
+  const driverRef = useRef<L.Marker | null>(null);
+  const weatherScale = driverPosition ? 6 : 4;
   const clickRef = useRef(onSelect);
   useEffect(() => {
     clickRef.current = onSelect;
@@ -50,20 +55,22 @@ export function RouteMap({
     map.createPane('weather');
     map.getPane('weather')!.style.zIndex = '350';
     map.getPane('weather')!.style.pointerEvents = 'none';
+    let settle = 0;
     const resize = new ResizeObserver(() => {
-      map.invalidateSize();
-      if (boundsRef.current)
-        map.fitBounds(boundsRef.current, {
-          padding: [40, 40],
-          maxZoom: 11,
-          animate: false,
-        });
+      map.invalidateSize({ pan: false });
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => {
+        if (boundsRef.current)
+          map.fitBounds(boundsRef.current, { padding: [40, 40], maxZoom: 11, animate: false });
+      }, 120);
     });
     resize.observe(container.current);
     return () => {
       resize.disconnect();
+      window.clearTimeout(settle);
       map.remove();
       mapRef.current = null;
+      driverRef.current = null;
     };
   }, []);
   useEffect(() => {
@@ -146,7 +153,7 @@ export function RouteMap({
     function draw() {
       if (!map || !plan) return;
       const size = map.getSize();
-      const scale = 4;
+      const scale = weatherScale;
       canvas.width = Math.ceil(size.x / scale);
       canvas.height = Math.ceil(size.y / scale);
       canvas.style.width = `${size.x}px`;
@@ -155,14 +162,14 @@ export function RouteMap({
       const samples = plan.corridor.map((c) => {
         const p = map.latLngToContainerPoint(latLng(c.coordinate));
         const edge = map.latLngToContainerPoint(c.bounds[1]);
-        const w = c.hours[hour];
+        const w = forecastAtHour(c.hours, hour);
         return {
           x: p.x / scale,
           y: p.y / scale,
           radius: Math.max(1, (p.distanceTo(edge) * 2) / scale),
-          wind: w.wind_mph,
-          rain: w.rain_in,
-          snow: w.snow_in,
+          wind: w.wind,
+          rain: w.rain,
+          snow: w.snow,
         };
       });
       const ctx = canvas.getContext('2d');
@@ -191,7 +198,33 @@ export function RouteMap({
       map.off('zoomstart', hide);
       canvas.remove();
     };
-  }, [plan, hour, heatmap]);
+  }, [plan, hour, heatmap, weatherScale]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!driverPosition) {
+      driverRef.current?.remove();
+      driverRef.current = null;
+      return;
+    }
+    if (!driverRef.current) {
+      driverRef.current = L.marker(latLng(driverPosition), {
+        keyboard: false,
+        title: 'Simulated driver position',
+        zIndexOffset: 1000,
+        icon: L.divIcon({
+          className: 'driver-marker',
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+          html: '<span><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 5h11v12H3zM14 9h4l3 4v4h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>',
+        }),
+      })
+        .addTo(map)
+        .bindTooltip('Estimated position · continuous-driving preview');
+    } else driverRef.current.setLatLng(latLng(driverPosition));
+    const element = driverRef.current.getElement();
+    if (element) element.dataset.coordinate = driverPosition.join(',');
+  }, [driverPosition]);
   useEffect(() => {
     const map = mapRef.current;
     const route = plan?.routes.find((r) => r.id === selectedId);

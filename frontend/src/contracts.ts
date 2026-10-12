@@ -24,6 +24,7 @@ const route = z.object({
   name: z.string(),
   via_note: z.string(),
   geometry: z.object({ type: z.literal('LineString'), coordinates: z.array(coordinate) }),
+  geometry_elapsed_s: z.array(z.number().finite().nonnegative()).optional(),
   segments: z.array(z.object({ coordinates: z.array(coordinate), level })),
   distance_miles: z.number(),
   duration_s: z.number(),

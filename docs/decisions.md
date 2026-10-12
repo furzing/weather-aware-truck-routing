@@ -30,6 +30,16 @@ Each cached provider response retains its original retrieval timestamp. `sources
 
 The recommendation explanation compares the winner with the next eligible route and names the first differing ranking criterion and values. Earlier criteria are tied. A sole eligible route and an exact four-criterion tie receive separate explanations. The stable ID is disclosed as the final tie resolver.
 
+## Drive preview
+
+Each route now exposes `geometry_elapsed_s`, one cumulative time per GeoJSON vertex. It uses the same validated OSRM annotations and total-duration scaling as checkpoints. The client checks alignment, monotonicity, finite values, and the destination total before enabling playback. Missing timing disables playback; it does not create a constant-speed substitute. Binary search selects the current road segment, followed by interpolation within that segment. Duplicate zero-duration vertices are supported, and arrival clamps to the exact final coordinate.
+
+The animation advances estimated continuous-driving time, not a driver's real position. The default speed shows one driving hour in five seconds; slower and faster choices are available. Updates are bounded to roughly 12 per second, with a short marker transition. Backgrounding the document, changing routes, submitting a comparison, or opening Rules pauses playback. Seeking pauses; reaching arrival stops and offers replay. It performs no additional provider requests.
+
+Fractional forecast hours interpolate wind/rain/snow between adjacent preloaded samples before classifying the weather field. The marker's estimated conditions use the same bounded spatial weighting in Web Mercator. The canvas uses six screen pixels per sample during preview, versus four for manual inspection, to bound redraw work; this changes display sampling, not forecast resolution. Checkpoint risk, risk miles, eligibility, and ranking remain unchanged. The next High-or-worse checkpoint is an arrival-based sample, not a promise to detect every intervening hazard. An excluded route can be inspected, with its No Travel warning retained.
+
+No rest, break, loading, live traffic, or duty-clock scheduling is included. The Rules page explains these assumptions. The preview cannot demonstrate a legally feasible schedule or validate forecast accuracy.
+
 ## ELD and scheduling scope
 
 Rules (`/rules`) separates the assessment policy from regulatory guidance. It describes the general U.S. federal interstate property-carrying baseline; it is not a rules engine for every jurisdiction or exemption. No Spotter ELD capability or integration is assumed. This app reads no duty logs, does not authenticate a driver, and does not establish remaining driving/window/break/cycle availability.

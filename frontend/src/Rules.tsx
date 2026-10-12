@@ -1,4 +1,5 @@
 import { ArrowLeft, Truck } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 const sections = [
   ['recommendation', 'How the recommendation works'],
@@ -13,6 +14,15 @@ export function Rules({
 }: {
   onNavigate: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
+  const [contentsOpen, setContentsOpen] = useState(
+    () => window.matchMedia('(min-width: 761px)').matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 761px)');
+    const change = (event: MediaQueryListEvent) => setContentsOpen(event.matches);
+    media.addEventListener('change', change);
+    return () => media.removeEventListener('change', change);
+  }, []);
   return (
     <div className="rules-page">
       <aside className="rules-sidebar" aria-label="Rules navigation">
@@ -30,12 +40,20 @@ export function Rules({
           <a className="back-to-planner" href="/" onClick={onNavigate}>
             <ArrowLeft size={16} aria-hidden="true" /> Back to planner
           </a>
-          <strong>Rules</strong>
-          {sections.map(([id, title]) => (
-            <a key={id} href={`#${id}`}>
-              {title}
-            </a>
-          ))}
+          <details
+            className="rules-index"
+            open={contentsOpen}
+            onToggle={(event) => setContentsOpen(event.currentTarget.open)}
+          >
+            <summary>On this page</summary>
+            <div>
+              {sections.map(([id, title]) => (
+                <a key={id} href={`#${id}`}>
+                  {title}
+                </a>
+              ))}
+            </div>
+          </details>
         </nav>
       </aside>
       <main className="rules-main" tabIndex={-1}>
@@ -184,6 +202,28 @@ export function Rules({
               </dd>
             </div>
           </dl>
+          <details>
+            <summary>Drive preview and assumptions</summary>
+            <p>
+              Simulate drive moves an estimated driver position along the selected road using the
+              routing provider’s segment times. Play, pause, seek, reset, and playback speed change
+              the preview only. It stops at the destination and pauses when you change routes, open
+              Rules, or hide the browser tab.
+            </p>
+            <p>
+              The weather field advances with simulated time, interpolating hourly wind, rain, and
+              snowfall before applying the load policy. Conditions at the marker are interpolated
+              estimates; the next High-or-worse checkpoint uses the original arrival-based sample.
+              Playback makes no new weather requests and does not update the forecast. Using the
+              corridor forecast slider exits the drive preview.
+            </p>
+            <p>
+              This assumes continuous driving without breaks, rest, loading, or live traffic. It is
+              not GPS tracking or a legal schedule. A No Travel route can be inspected but stays
+              excluded from recommendations. Check official road reports and the driver’s duty
+              records before acting.
+            </p>
+          </details>
           <p>
             If a refresh fails, the previous trip remains visible with its original retrieval time.
             It has not been updated. Check official weather warnings and road reports before

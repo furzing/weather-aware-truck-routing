@@ -4,6 +4,18 @@ import math
 METERS_PER_MILE = 1609.344
 
 
+def geometry_elapsed(route):
+    """Per-vertex elapsed seconds, after checkpoints has validated annotations."""
+    durations = [d for leg in route["legs"] for d in leg["annotation"]["duration"]]
+    scale = route["duration"] / sum(durations)
+    elapsed, result = 0.0, [0.0]
+    for value in durations:
+        elapsed += value
+        result.append(elapsed * scale)
+    result[-1] = route["duration"]
+    return result
+
+
 def road_overlap(a, b):
     """Shared OSRM geometry length / longer geometry; not lane-level identity."""
 
