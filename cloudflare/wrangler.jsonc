@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "weather-aware-truck-routing",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": true,
+  "assets": {
+    "directory": "../frontend/dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "none",
+  },
+  "containers": [
+    {
+      "class_name": "RoutingBackend",
+      "image": "../Dockerfile",
+      "image_build_context": "..",
+      "instance_type": "basic",
+      "max_instances": 1,
+    },
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "BACKEND", "class_name": "RoutingBackend" }],
+  },
+  "exports": {
+    "RoutingBackend": { "type": "durable-object", "storage": "sqlite" },
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1,
+  },
+}

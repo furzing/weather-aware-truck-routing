@@ -15,9 +15,12 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            cloudflare/package-lock.json
       - run: pip install -r requirements-dev.txt
       - run: npm --prefix frontend ci
+      - run: npm --prefix cloudflare ci
       - run: ruff check backend scripts
       - run: ruff format --check backend scripts
       - run: python backend/manage.py test routing -v 2
@@ -26,4 +29,17 @@ jobs:
       - run: npm --prefix frontend run format:check
       - run: npm --prefix frontend test
       - run: npm --prefix frontend run build
+      - run: npm --prefix cloudflare run check
+      - run: npm --prefix cloudflare run dry-run
       - run: python backend/manage.py collectstatic --noinput
+      - name: Build and smoke-test the deployment image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --tag weather-routing:ci .
+          docker run --detach --name weather-routing-ci --publish 8000:8000 \
+            --env SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
+            --env ALLOWED_HOSTS=localhost,127.0.0.1 weather-routing:ci
+          trap 'docker rm --force weather-routing-ci >/dev/null' EXIT
+          python scripts/wait_for_server.py http://127.0.0.1:8000/api/health
+          python scripts/production_smoke.py

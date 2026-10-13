@@ -8,3 +8,6 @@ output
 .playwright-cli
 .env
 *.log
+cloudflare
+**/.wrangler
+**/.dev.vars*

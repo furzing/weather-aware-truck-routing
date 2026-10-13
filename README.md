@@ -2,6 +2,8 @@
 
 React + TypeScript + Django assessment for comparing three road routes using forecast weather, load weight, and driving time. The app checks weather at each checkpoint's estimated arrival, recommends a route using the assessment's priority order, and displays an independent 0–48 hour corridor forecast.
 
+Repository: [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing) (private). [GitHub Actions](https://github.com/furzing/weather-aware-truck-routing/actions) verifies the app and deployment preparation.
+
 ## Run locally
 
 Requires Python 3.13 and Node.js 24. No API key or database is needed for this local evaluation. Internet access is needed for routing, city search, weather, and map tiles.
@@ -120,4 +122,4 @@ Provider documentation: [OSRM route API](https://project-osrm.org/docs/v26.5.0/h
 
 ## Hosting and submission
 
-The requested first milestone is local delivery. No repository was published, service deployed, or Loom recording uploaded. Docker and CI files prepare the next step; [docs/deployment.md](docs/deployment.md) specifies configuration and smoke checks. Create the GitHub repository, deploy the tested revision, and record the walkthrough before submitting the assessment.
+The repository is published under `furzing`; a public application and Loom recording remain pending. [docs/deployment.md](docs/deployment.md) contains the prepared Cloudflare Worker + Container setup, secret configuration, costs/prerequisites, and verification commands. React assets are served at the edge; same-origin `/api/*` requests reach the existing Django container. Local startup still uses Waitress directly and needs no Cloudflare account.
