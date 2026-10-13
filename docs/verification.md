@@ -81,6 +81,7 @@ The revision adds no learned model and makes no claim of improved accident outco
 - Started the built app locally through `scripts/start.ps1`. Production HTTP/static checks passed. A fresh live comparison returned three routes, 13/13/14 checkpoints, 103 corridor cells, and 133 forecast locations in one 4.15-second observation; this is not a latency benchmark.
 - Added a separate locked Cloudflare Worker package using Wrangler 4.150.0 and `@cloudflare/containers` 0.3.7. Four boundary tests pass for HTML deep links, immutable assets/404/method behavior, API body/query/proxy-header forwarding, and missing-secret/container-error handling. Strict TypeScript and the Worker-only dry run pass. The Worker serves React assets without waking Django and forwards API requests to one named backend Container.
 - Full container dry-run/build/smoke checks are added to GitHub Actions. Local full dry run reports that Docker is unavailable; the Worker-only check explicitly skips container rollout and does not validate a running container. A live Cloudflare Worker/Container deployment, its cold start, public-provider connectivity, and actual public HTTPS/GPS workflow remain untested. No deployment or paid resource was created.
+- The first container CI run caught a missing build-stage dependency: frontend strict compilation also checks a test importing the backend's shared policy fixture. The Docker frontend stage now preserves the repository's relative layout and copies that fixture explicitly; tests and type checking remain enabled.
 
 ## Remaining limits
 
