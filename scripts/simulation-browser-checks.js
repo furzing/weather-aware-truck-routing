@@ -60,6 +60,23 @@ async (page) => {
   page.off('request', count);
   await page.getByRole('button', { name: 'Close simulation', exact: true }).click();
 
+  // Moving the drawer must not trigger map/forecast resizing on every pointer event.
+  await page.getByRole('button', { name: /^Checkpoints \(/ }).click();
+  const desktopGrip = page.getByRole('separator', { name: 'Resize checkpoints', exact: true });
+  await desktopGrip.focus(); await desktopGrip.press('ArrowUp');
+  const frozenMap = await page.locator('.map').boundingBox();
+  const oldDrawer = await page.locator('#checkpoint-details').boundingBox();
+  const dragHandle = await desktopGrip.boundingBox();
+  await page.mouse.move(dragHandle.x + dragHandle.width / 2, dragHandle.y + dragHandle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dragHandle.x + dragHandle.width / 2, dragHandle.y + dragHandle.height / 2 - 60, { steps: 12 });
+  await page.waitForFunction(height => document.querySelector('#checkpoint-details').getBoundingClientRect().height > height + 45, oldDrawer.height);
+  const duringDrag = await page.locator('.map').boundingBox();
+  check(Math.abs(duringDrag.height - frozenMap.height) < 1, 'Map must stay fixed while the drawer follows the pointer');
+  await page.mouse.up();
+  await page.waitForFunction(height => document.querySelector('.map').getBoundingClientRect().height < height - 45, frozenMap.height);
+  await page.getByRole('button', { name: 'Hide checkpoints', exact: true }).click();
+
   for (const size of [{ width: 390, height: 844 }, { width: 320, height: 667 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(size);
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight), `Viewport overflow at ${JSON.stringify(size)}`);
@@ -156,5 +173,5 @@ async (page) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   check(errors.length === 0, `Page errors: ${errors.join('; ')}`);
   await page.reload();
-  return { passed: true, base, liveTimingVertices: route.geometry_elapsed_s.length, simulationAPICalls: requests, mobileSizes: ['390×844','320×667','844×390'], injectedTemporalStorm: true, javascriptErrors: errors };
+  return { passed: true, base, liveTimingVertices: route.geometry_elapsed_s.length, simulationAPICalls: requests, drawerMapFixedDuringDrag: true, mobileSizes: ['390×844','320×667','844×390'], injectedTemporalStorm: true, javascriptErrors: errors };
 }

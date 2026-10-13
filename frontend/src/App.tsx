@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  ClipboardList,
   CloudSun,
   Layers,
   LoaderCircle,
@@ -11,6 +12,7 @@ import {
   Route as RouteIcon,
   ShieldAlert,
   Truck,
+  SlidersHorizontal,
   Wind,
   X,
 } from 'lucide-react';
@@ -148,7 +150,13 @@ export default function App() {
   function closeCheckpoints() {
     setCheckpointsOpen(false);
     window.requestAnimationFrame(() =>
-      document.querySelector<HTMLButtonElement>('.checkpoint-toggle')?.focus(),
+      document
+        .querySelector<HTMLButtonElement>(
+          window.matchMedia('(max-width: 760px)').matches
+            ? '.mobile-checkpoints'
+            : '.map-toolbar .checkpoint-toggle',
+        )
+        ?.focus(),
     );
   }
 
@@ -159,7 +167,7 @@ export default function App() {
     if (window.matchMedia('(max-width: 760px)').matches) {
       setMobilePanel(false);
       window.requestAnimationFrame(() =>
-        document.querySelector<HTMLButtonElement>('.mobile-planning-actions button')?.focus(),
+        document.querySelector<HTMLButtonElement>('.mobile-routes')?.focus(),
       );
     }
   }
@@ -173,8 +181,31 @@ export default function App() {
   function closeMobilePanel() {
     setMobilePanel(false);
     window.requestAnimationFrame(() =>
-      document.querySelector<HTMLButtonElement>('.mobile-panel-toggle')?.focus(),
+      document.querySelector<HTMLButtonElement>('.mobile-trip-toggle')?.focus(),
     );
+  }
+  function openTrip() {
+    setEditingTrip(true);
+    setMobilePanel(!(mobilePanel && editingTrip));
+    setCheckpointsOpen(false);
+    setSimulation((current) => ({ ...current, visible: false, playing: false }));
+  }
+  function startSimulation() {
+    setSimulation((current) => ({
+      ...current,
+      visible: true,
+      playing: true,
+      elapsed: current.elapsed >= driveDuration ? 0 : current.elapsed,
+    }));
+    setHeatmap(true);
+    setMobilePanel(false);
+    setCheckpointsOpen(false);
+    setFocusIndex(null);
+  }
+  function toggleCheckpoints() {
+    setCheckpointsOpen(!checkpointsOpen);
+    setMobilePanel(false);
+    setSimulation((current) => ({ ...current, visible: false, playing: false }));
   }
   async function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -221,7 +252,7 @@ export default function App() {
       setPlannedInputs(currentInputs);
       if (window.matchMedia('(max-width: 760px)').matches)
         window.requestAnimationFrame(() =>
-          document.querySelector<HTMLButtonElement>('.mobile-planning-actions button')?.focus(),
+          document.querySelector<HTMLButtonElement>('.mobile-routes')?.focus(),
         );
     } catch (e) {
       if (request.signal.aborted)
@@ -255,44 +286,7 @@ export default function App() {
                 Spotter<span className="brand-suffix"> / Route planner</span>
               </span>
             </div>
-            <button
-              className="mobile-panel-toggle"
-              type="button"
-              aria-expanded={mobilePanel}
-              aria-controls="planning-panel"
-              onClick={() => {
-                setEditingTrip(true);
-                setMobilePanel(!(mobilePanel && editingTrip));
-                setCheckpointsOpen(false);
-                setSimulation((current) => ({ ...current, visible: false, playing: false }));
-              }}
-            >
-              {plan ? 'Edit trip' : 'Trip details'}
-            </button>
           </header>
-          {plan && (
-            <nav className="mobile-planning-actions" aria-label="Mobile planning views">
-              <button
-                type="button"
-                aria-pressed={mobilePanel && sidebarView === 'routes' && !editingTrip}
-                aria-controls="planning-panel"
-                onClick={() => openMobileView('routes')}
-              >
-                Show routes
-              </button>
-              <button
-                type="button"
-                aria-pressed={mobilePanel && sidebarView === 'weather' && !editingTrip}
-                aria-controls="planning-panel"
-                onClick={() => openMobileView('weather')}
-              >
-                Show weather
-              </button>
-              <a href="/rules" onClick={navigate}>
-                Rules
-              </a>
-            </nav>
-          )}
           <div
             id="planning-panel"
             className={`sidebar-body ${plan && !editingTrip ? 'results-panel' : 'editing-panel'}`}
@@ -348,7 +342,6 @@ export default function App() {
               )}
               <div hidden={!!plan && !editingTrip}>
                 <div className="section-heading">
-                  <RouteIcon size={20} aria-hidden="true" />
                   <h1>Plan your trip</h1>
                 </div>
                 <p className="intro">Compare the weather ahead, before you choose a route.</p>
@@ -670,6 +663,15 @@ export default function App() {
               onAppearance={setAppearance}
               location={location}
               onCenter={() => setLocationFocus((previous) => previous + 1)}
+              onFit={() => {
+                setFocusIndex(null);
+                setFitRequest((previous) => previous + 1);
+              }}
+              onSimulate={startSimulation}
+              canFit={!!plan}
+              canSimulate={!!route && hasTiming(route) && !dirty && !busy}
+              simulating={simulation.visible}
+              onNavigate={navigate}
             />
           </section>
           {simulation.visible && plan && route && (
@@ -682,7 +684,13 @@ export default function App() {
                 setSimulation((current) => ({ ...current, visible: false, playing: false }));
                 setHour(Math.min(48, Math.floor(simulation.elapsed / 3600)));
                 window.requestAnimationFrame(() =>
-                  document.querySelector<HTMLButtonElement>('.simulate-button')?.focus(),
+                  document
+                    .querySelector<HTMLButtonElement>(
+                      window.matchMedia('(max-width: 760px)').matches
+                        ? '.mobile-simulate'
+                        : '.map-toolbar .simulate-button',
+                    )
+                    ?.focus(),
                 );
               }}
             />
@@ -700,18 +708,7 @@ export default function App() {
                   className="simulate-button"
                   disabled={!route || !hasTiming(route) || dirty || busy}
                   aria-expanded={simulation.visible}
-                  onClick={() => {
-                    setSimulation((current) => ({
-                      ...current,
-                      visible: true,
-                      playing: true,
-                      elapsed: current.elapsed >= driveDuration ? 0 : current.elapsed,
-                    }));
-                    setHeatmap(true);
-                    setMobilePanel(false);
-                    setCheckpointsOpen(false);
-                    setFocusIndex(null);
-                  }}
+                  onClick={startSimulation}
                 >
                   <Play size={15} aria-hidden="true" /> Simulate drive
                 </button>
@@ -732,11 +729,7 @@ export default function App() {
                 className="checkpoint-toggle"
                 aria-expanded={checkpointsOpen}
                 aria-controls="checkpoint-details"
-                onClick={() => {
-                  setCheckpointsOpen(!checkpointsOpen);
-                  setMobilePanel(false);
-                  setSimulation((current) => ({ ...current, visible: false, playing: false }));
-                }}
+                onClick={toggleCheckpoints}
                 disabled={!route}
               >
                 Checkpoints{route ? ` (${route.checkpoints.length})` : ''}{' '}
@@ -833,6 +826,54 @@ export default function App() {
             )}
           </CheckpointDrawer>
         </div>
+        <nav className="mobile-planning-actions" aria-label="Mobile planning views">
+          <button
+            type="button"
+            className="mobile-trip-toggle"
+            aria-label={plan ? 'Edit trip' : 'Trip details'}
+            aria-pressed={mobilePanel && editingTrip}
+            aria-controls="planning-panel"
+            onClick={openTrip}
+          >
+            <SlidersHorizontal size={18} aria-hidden="true" />
+            <span>Trip</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-routes"
+            aria-label="Show routes"
+            disabled={!plan}
+            aria-pressed={mobilePanel && sidebarView === 'routes' && !editingTrip}
+            aria-controls="planning-panel"
+            onClick={() => openMobileView('routes')}
+          >
+            <RouteIcon size={18} aria-hidden="true" />
+            <span>Routes</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Show weather"
+            disabled={!plan}
+            aria-pressed={mobilePanel && sidebarView === 'weather' && !editingTrip}
+            aria-controls="planning-panel"
+            onClick={() => openMobileView('weather')}
+          >
+            <CloudSun size={18} aria-hidden="true" />
+            <span>Weather</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-checkpoints checkpoint-toggle"
+            aria-label={`Checkpoints${route ? ` (${route.checkpoints.length})` : ''}`}
+            disabled={!route}
+            aria-expanded={checkpointsOpen}
+            aria-controls="checkpoint-details"
+            onClick={toggleCheckpoints}
+          >
+            <ClipboardList size={18} aria-hidden="true" />
+            <span>Checkpoints</span>
+          </button>
+        </nav>
       </main>
     </div>
   );

@@ -30,16 +30,19 @@ async (page) => {
   await response;
   await page.getByRole('button', { name: 'Show routes', exact: true }).waitFor();
   await page.unroute('**/api/plan');
-  for (const size of [{ width: 390, height: 844 }, { width: 320, height: 667 }]) {
+  for (const size of [{ width: 390, height: 844 }, { width: 320, height: 667 }, { width: 390, height: 700 }]) {
     await page.setViewportSize(size);
     await page.getByRole('button', { name: 'Show routes', exact: true }).click();
     const panel = await page.locator('.sidebar-body').boundingBox();
     const map = await page.locator('.map').boundingBox();
     check(panel.height <= size.height * 0.37, 'Result panel must leave room for the map');
-    check(map.y >= panel.y + panel.height - 1, 'Mobile result controls must not cover the map');
+    check(map.y + map.height <= panel.y + 1, 'Bottom sheet must not cover the map');
+    const dock = await page.locator('.mobile-planning-actions').boundingBox();
+    check(dock.y + dock.height <= size.height + 1 && dock.y >= size.height - 100, 'Dock must stay inside the visible viewport bottom');
+    check(panel.y + panel.height <= dock.y + 1, 'Sheet must end above the bottom dock');
     await page.getByRole('button', { name: /^2 Route 2/ }).click();
     check(!await page.locator('.sidebar-body').isVisible(), 'Selecting a route must close the mobile panel');
-    await page.waitForFunction(() => document.activeElement?.textContent === 'Show routes');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Show routes');
     await page.getByRole('button', { name: 'Show weather', exact: true }).click();
     check(await page.getByRole('checkbox', { name: 'Weather layer', exact: true }).isVisible(), 'Weather layer toggle must stay accessible');
     await page.getByRole('slider', { name: 'Forecast hour after departure' }).focus();
@@ -49,6 +52,13 @@ async (page) => {
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight), 'Mobile viewport must not overflow');
   }
   await page.setViewportSize({ width: 390, height: 844 });
+  const safeArea = await page.context().newCDPSession(page);
+  await safeArea.send('Emulation.setSafeAreaInsetsOverride', { insets: { bottom: 34, top: 0, left: 0, right: 0 } });
+  await page.waitForFunction(() => document.querySelector('.mobile-planning-actions').getBoundingClientRect().height >= 97);
+  check(await page.locator('.mobile-planning-actions').evaluate(el => [...el.querySelectorAll('button')].every(button => button.getBoundingClientRect().bottom <= innerHeight - 34)), 'Dock actions must clear the emulated gesture safe area');
+  await page.screenshot({ path: 'output/playwright/bottom-dock-safe-area.png' });
+  await safeArea.send('Emulation.setSafeAreaInsetsOverride', { insets: { bottom: 0, top: 0, left: 0, right: 0 } });
+  await safeArea.detach();
   await page.getByRole('button', { name: 'Map settings', exact: true }).click();
   await page.getByLabel('Appearance', { exact: true }).selectOption('dark');
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
@@ -115,5 +125,5 @@ async (page) => {
   await page.setViewportSize({ width: 1365, height: 679 });
   await page.reload();
   check(errors.length === 0, `JavaScript errors: ${errors.join('; ')}`);
-  return { passed: true, base, providerData: capturedPlan ? 'captured provider replay, not a fresh forecast' : 'live API response', gps: 'emulated native browser position, denial, movement, offline/resume, stale, stop', locationAPICalls: requests, mobileSizes: ['390×844','320×667'], darkAxeViolations: 0, javascriptErrors: errors };
+  return { passed: true, base, providerData: capturedPlan ? 'captured provider replay, not a fresh forecast' : 'live API response', gps: 'emulated native browser position, denial, movement, offline/resume, stale, stop', locationAPICalls: requests, mobileSizes: ['390×844','320×667','390×700'], safeAreaInset: 34, darkAxeViolations: 0, javascriptErrors: errors };
 }

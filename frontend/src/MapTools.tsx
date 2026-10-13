@@ -1,4 +1,4 @@
-import { LocateFixed, Moon, Settings2, X } from 'lucide-react';
+import { LocateFixed, Moon, Settings2, X, Play, Expand } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Appearance } from './useAppearance';
 import type { useLocation } from './useLocation';
@@ -8,15 +8,36 @@ export function MapTools({
   onAppearance,
   location,
   onCenter,
+  onFit,
+  onSimulate,
+  canFit,
+  canSimulate,
+  simulating,
+  onNavigate,
 }: {
   appearance: Appearance;
   onAppearance: (value: Appearance) => void;
   location: ReturnType<typeof useLocation>;
   onCenter: () => void;
+  onFit: () => void;
+  onSimulate: () => void;
+  canFit: boolean;
+  canSimulate: boolean;
+  simulating: boolean;
+  onNavigate: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const map = root.current?.closest('.map-section');
+    if (!map) return;
+    const resize = new ResizeObserver(([entry]) =>
+      root.current?.style.setProperty('--map-height', `${entry.contentRect.height}px`),
+    );
+    resize.observe(map);
+    return () => resize.disconnect();
+  }, []);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -62,6 +83,28 @@ export function MapTools({
         >
           <LocateFixed size={19} aria-hidden="true" />
         </button>
+        <button
+          type="button"
+          className="icon-button mobile-map-action"
+          aria-label="Fit routes"
+          title="Fit routes"
+          disabled={!canFit}
+          onClick={onFit}
+        >
+          <Expand size={19} aria-hidden="true" />
+        </button>
+        {!simulating && (
+          <button
+            type="button"
+            className="icon-button mobile-map-action mobile-simulate"
+            aria-label="Simulate drive"
+            title="Simulate drive"
+            disabled={!canSimulate}
+            onClick={onSimulate}
+          >
+            <Play size={19} aria-hidden="true" />
+          </button>
+        )}
       </div>
       <section id="map-settings" className="map-settings" aria-label="Map settings" hidden={!open}>
         <div>
@@ -99,6 +142,9 @@ export function MapTools({
           Permission required. Location is not sent to the planner API or stored. It does not
           reroute or update weather.
         </p>
+        <a href="/rules" onClick={onNavigate}>
+          Rules & how it works
+        </a>
       </section>
       {(location.enabled || location.error) && (
         <p className="location-status" role="status">

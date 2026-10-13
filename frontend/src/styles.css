@@ -491,6 +491,7 @@ select:disabled {
   margin-top: 5px;
 }
 .workspace {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -629,7 +630,11 @@ select:disabled {
   text-underline-offset: 2px;
 }
 .checkpoints-section {
-  position: relative;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
   background: var(--surface);
   min-width: 0;
   flex-shrink: 0;
@@ -641,8 +646,7 @@ select:disabled {
     visibility 0s 220ms;
 }
 .checkpoints-section.drawer-open {
-  height: min(var(--drawer-height), 60dvh);
-  max-height: calc(100% - 180px);
+  height: min(var(--drawer-height), 60dvh, calc(100% - 180px));
   visibility: visible;
   transition-delay: 0s;
 }
@@ -656,6 +660,7 @@ select:disabled {
   min-height: 0;
 }
 .drawer-grip {
+  user-select: none;
   min-height: 32px;
   display: grid;
   place-items: center;
@@ -801,9 +806,6 @@ select:disabled {
 
 [hidden] {
   display: none !important;
-}
-.mobile-panel-toggle {
-  display: none;
 }
 .trip-summary {
   display: flex;
@@ -1260,6 +1262,7 @@ main.rules-main {
 }
 @media (max-width: 760px) {
   main {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100dvh;
@@ -1280,36 +1283,28 @@ main.rules-main {
   .brand-suffix {
     display: none;
   }
-  .mobile-panel-toggle {
-    display: block;
-    margin-left: auto;
-    background: var(--selected);
-    color: var(--accent);
-    border-radius: 6px;
-    min-height: 40px;
-    padding: 4px 8px;
-    font-size: 12px;
+  .app-shell main {
+    --dock-height: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-shell .app-header {
+    display: none;
   }
   .sidebar {
-    border-right: 0;
-    flex-shrink: 0;
-    z-index: 1001;
+    display: contents;
   }
   .sidebar-body {
     display: none;
     position: absolute;
-    top: 108px;
+    top: auto;
+    bottom: var(--dock-height);
     left: 0;
     width: 100%;
-    max-height: calc(100dvh - 172px);
+    max-height: calc(100dvh - var(--dock-height) - 120px);
     overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--surface);
-    border-bottom: 1px solid var(--line);
-  }
-  .sidebar:not(:has(.mobile-planning-actions)) .sidebar-body {
-    top: 64px;
-    max-height: calc(100dvh - 128px);
+    border-top: 1px solid var(--line);
+    z-index: 30;
   }
   .mobile-open .sidebar-body {
     display: block;
@@ -1323,18 +1318,7 @@ main.rules-main {
     min-height: 120px;
   }
   .map-toolbar {
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 8px 12px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
-  }
-  .map-toolbar > span {
-    font-size: 12px;
-  }
-  .map-toolbar > div {
-    width: 100%;
-    justify-content: space-between;
-    gap: 4px;
+    display: none;
   }
   .checkpoint-heading {
     padding: 0 12px 8px;
@@ -1355,35 +1339,47 @@ main.rules-main {
     min-height: 40px;
   }
   .mobile-planning-actions {
-    height: 44px;
-    display: flex;
-    align-items: stretch;
-    gap: 8px;
-    padding: 0 12px 4px;
-    border-bottom: 1px solid var(--line);
+    height: var(--dock-height);
+    min-height: var(--dock-height);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
     background: var(--surface);
+    border-top: 1px solid var(--line);
+    flex-shrink: 0;
+    z-index: 40;
   }
   .mobile-planning-actions button {
-    flex: 1;
-    border: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    min-height: 48px;
+    min-width: 0;
+    border: 1px solid transparent;
     border-radius: 6px;
     background: var(--surface);
-    font-size: 13px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 0;
+    line-height: 1.2;
   }
-  .mobile-planning-actions button[aria-pressed='true'] {
+  .mobile-planning-actions button:disabled {
+    opacity: 0.45;
+  }
+  .mobile-planning-actions button[aria-pressed='true'],
+  .mobile-planning-actions button[aria-expanded='true'] {
     border-color: var(--accent);
     background: var(--selected);
     color: var(--accent);
   }
-  .mobile-planning-actions a {
-    min-width: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent);
-    font-size: 13px;
+  .mobile-planning-actions .checkpoint-toggle svg {
+    transform: none;
   }
-  .mobile-open:has(.mobile-planning-actions) .planner-navigation,
+  .app-shell .planner-navigation,
   .mobile-open .sidebar-views {
     display: none;
   }
@@ -1393,9 +1389,6 @@ main.rules-main {
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
-  }
-  .checkpoints-section.drawer-open {
-    max-height: calc(100% - 210px);
   }
   .trip-fields input,
   .trip-fields select {
@@ -1497,9 +1490,12 @@ main.rules-main {
   .workspace:has(.simulation-panel) .simulate-button {
     display: none;
   }
+  .leaflet-top.leaflet-right {
+    top: auto;
+    bottom: 24px;
+  }
   .leaflet-control-zoom {
-    margin-top: 16px !important;
-    margin-right: 16px !important;
+    margin: 0 12px 0 0 !important;
   }
   .rules-page {
     display: block;
@@ -1535,6 +1531,13 @@ main.rules-main {
 .mobile-panel-heading {
   display: none;
 }
+.checkpoint-space {
+  height: min(var(--drawer-height), 60dvh, calc(100% - 180px));
+  flex-shrink: 0;
+}
+.mobile-map-action {
+  display: none !important;
+}
 .map-tools {
   position: absolute;
   top: 16px;
@@ -1551,6 +1554,9 @@ main.rules-main {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--ink);
+}
+.map-tool-buttons .icon-button:disabled {
+  opacity: 0.45;
 }
 .location-toggle[aria-pressed='true'] {
   color: var(--accent);
@@ -1741,12 +1747,21 @@ main.rules-main {
     padding: 4px 12px;
   }
   .sidebar-body.results-panel {
-    position: static;
+    height: 36dvh;
     max-height: 36dvh;
   }
-  .sidebar-body.editing-panel,
-  .sidebar:not(:has(.mobile-planning-actions)) .sidebar-body {
-    max-height: min(62dvh, calc(100dvh - 172px));
+  .sidebar-body.editing-panel {
+    max-height: min(62dvh, calc(100dvh - var(--dock-height) - 120px));
+    scroll-padding-bottom: 64px;
+  }
+  .editing-panel .primary-button {
+    position: sticky;
+    bottom: 12px;
+    z-index: 6;
+    box-shadow: 0 0 0 8px var(--surface);
+  }
+  .app-shell main:has(.mobile-open .results-panel) .workspace {
+    padding-bottom: 36dvh;
   }
   .results-panel .trip-section {
     display: none;
@@ -1776,7 +1791,39 @@ main.rules-main {
     padding-top: 12px;
   }
   .map-tools {
-    top: 12px;
+    top: auto;
+    bottom: 24px;
     left: 12px;
+    max-width: calc(100% - 64px);
+  }
+  .mobile-map-action {
+    display: inline-grid !important;
+  }
+  .map-tool-buttons {
+    gap: 4px;
+  }
+  .map-settings {
+    position: absolute;
+    bottom: 52px;
+    left: 0;
+    margin: 0;
+    max-height: max(80px, calc(var(--map-height, 100dvh) - 80px));
+  }
+  .map-settings a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--accent);
+  }
+  .location-status {
+    position: absolute;
+    bottom: 52px;
+    left: 0;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    margin: 0;
+  }
+  .map-tools:has(.map-settings:not([hidden])) .location-status {
+    display: none;
   }
 }
