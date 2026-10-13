@@ -20,6 +20,7 @@ async (page) => {
   await page.screenshot({ path: 'output/playwright/rules-eld-desktop.png' });
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
+    if (width === 390) await page.waitForFunction(() => !document.querySelector('.rules-index').open);
     if (!await page.getByRole('link', { name: 'Weather & load thresholds', exact: true }).isVisible()) await page.getByText('On this page', { exact: true }).click();
     await page.getByRole('link', { name: 'Weather & load thresholds', exact: true }).click();
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Rules page overflows at ${width}px`);

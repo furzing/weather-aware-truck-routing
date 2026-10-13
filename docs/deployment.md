@@ -33,7 +33,7 @@ Public-demo limits: caches, admission control, and rate limits are per process. 
 
 Use `cloudflare/wrangler.jsonc` and its separate npm lockfile. This follows Cloudflare's [static frontend/container backend pattern](https://developers.cloudflare.com/containers/examples/container-backend/) while retaining the tested Django/HTTPX/threaded provider runtime. A Python Workers port would require separate compatibility and concurrency validation; it is not necessary for this deployment.
 
-Request path: browser → HTTPS Worker → React static assets, or `/api/*` → one named Durable Object → Django/Waitress Container → routing/weather providers. The existing root Dockerfile remains usable for other hosts. Its build context is explicitly the repository root. No database, KV namespace, new user storage, or cross-origin API configuration is added.
+Request path: browser → HTTPS Worker → React static assets, or `/api/*` → one named Durable Object → Django/Waitress Container → routing/weather providers. The existing root Dockerfile remains usable for other hosts. Its build context is explicitly the repository root. No application database, KV namespace, trip storage, or cross-origin API configuration is added; the Durable Object's SQLite storage is used by the Container lifecycle helpers.
 
 - `/`, `/rules`, and `/rules/` use the same revalidated HTML. Unknown paths remain 404; fingerprinted assets are immutable. Static pages do not wake the container.
 - API bodies, queries, response statuses, and JSON provider errors are preserved; API responses use `no-store`. Missing configuration, thrown infrastructure errors, and non-JSON container startup failures become explicit JSON 503 responses rather than successful plans or exposed startup details.
