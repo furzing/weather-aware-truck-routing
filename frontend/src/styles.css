@@ -9,8 +9,8 @@
 
 :root {
   font-family: 'Inter Variable', sans-serif;
-  color: #1e3235;
-  background: #f4f6f5;
+  color: var(--ink);
+  background: var(--soft);
   font-synthesis: none;
   --ink: #1e3235;
   --muted: #56696b;
@@ -188,7 +188,7 @@ select {
   border: 1px solid #b9c9c2;
   border-radius: 6px;
   padding: 0 11px;
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   min-width: 0;
 }
@@ -237,7 +237,7 @@ select:disabled {
   margin: 5px 0 0;
   padding: 4px;
   position: absolute;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
   z-index: 900;
@@ -306,7 +306,8 @@ select:disabled {
   padding: 10px 0;
 }
 .spinner {
-  animation: rotate 1s linear infinite;
+  transform-origin: center;
+  animation: rotate 0.7s linear infinite;
 }
 @keyframes rotate {
   to {
@@ -1528,5 +1529,254 @@ main.rules-main {
 @media (max-height: 600px) {
   .map-section {
     min-height: 100px;
+  }
+}
+
+.mobile-panel-heading {
+  display: none;
+}
+.map-tools {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 800;
+  max-width: calc(100% - 88px);
+}
+.map-tool-buttons {
+  display: flex;
+  gap: 8px;
+}
+.map-tool-buttons .icon-button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+}
+.location-toggle[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--selected);
+}
+.map-settings {
+  width: 256px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px #0002;
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
+}
+.map-settings > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.map-settings label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-weight: 600;
+}
+.map-settings p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 8px 0 12px;
+}
+.map-settings select {
+  font-size: 16px;
+}
+.map-settings .secondary-button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--selected);
+  color: var(--accent);
+}
+.location-status {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-top: 8px;
+  max-width: 256px;
+  font-size: 12px;
+}
+.gps-marker {
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #225cc7;
+  box-shadow: 0 0 0 1px #225cc7;
+}
+.gps-marker.gps-stale {
+  background: #56696b;
+  box-shadow: 0 0 0 1px #56696b;
+}
+.planning-progress {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.planning-progress p {
+  margin-top: 8px;
+}
+.planning-progress-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--line);
+}
+.planning-progress-track > span {
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: var(--accent);
+  animation: planning-sweep 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes planning-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(285%);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #e5efea;
+  --muted: #afc0b9;
+  --surface: #172426;
+  --soft: #101b1d;
+  --line: #3c5049;
+  --accent: #83d3b1;
+  --accent-hover: #a7e4c7;
+  --selected: #203d32;
+  --focus: #9bbcff;
+}
+@media (forced-colors: none) {
+  [data-theme='dark'] .leaflet-tile {
+    filter: invert(1) hue-rotate(180deg) brightness(0.78) saturate(0.65);
+  }
+}
+[data-theme='dark'] .primary-button:not(:disabled),
+[data-theme='dark'] .simulate-button:not(:disabled),
+[data-theme='dark'] .simulation-play {
+  color: #102d2b;
+}
+[data-theme='dark'] .route-number {
+  background: var(--line);
+}
+[data-theme='dark'] .recommended {
+  color: var(--accent);
+}
+[data-theme='dark'] .risk-0 {
+  color: #9fe0c1;
+  background: #173e32;
+}
+[data-theme='dark'] .risk-1 {
+  color: #f4d189;
+  background: #493710;
+}
+[data-theme='dark'] .risk-2 {
+  color: #ffc6a5;
+  background: #4b2a1c;
+}
+[data-theme='dark'] .risk-3 {
+  color: #ffbdc8;
+  background: #4e2531;
+}
+[data-theme='dark'] .risk-4,
+[data-theme='dark'] .no-travel-message {
+  color: #e1b4f0;
+  background: #3f2848;
+}
+[data-theme='dark'] .simulation-excluded {
+  color: #e1b4f0;
+}
+[data-theme='dark'] .error-message {
+  background: #4e2531;
+  color: #ffbdc8;
+  border-color: #84505d;
+}
+[data-theme='dark'] .changed-message {
+  background: #493710;
+  color: #f4d189;
+  border-color: #7b6334;
+}
+[data-theme='dark'] .checkpoint-table th {
+  background: var(--soft);
+}
+[data-theme='dark'] .checkpoint-table td {
+  border-color: var(--line);
+}
+[data-theme='dark'] .leaflet-control-zoom a,
+[data-theme='dark'] .leaflet-tooltip,
+[data-theme='dark'] .leaflet-control-attribution {
+  background: var(--surface);
+  color: var(--ink);
+}
+[data-theme='dark'] .leaflet-control-attribution a {
+  color: var(--accent);
+}
+[data-theme='dark'] .leaflet-container {
+  background: var(--soft);
+}
+
+@media (max-width: 760px) {
+  .mobile-panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 4px 12px;
+  }
+  .sidebar-body.results-panel {
+    position: static;
+    max-height: 36dvh;
+  }
+  .sidebar-body.editing-panel,
+  .sidebar:not(:has(.mobile-planning-actions)) .sidebar-body {
+    max-height: min(62dvh, calc(100dvh - 172px));
+  }
+  .results-panel .trip-section {
+    display: none;
+  }
+  .results-panel .routes-section,
+  .results-panel .forecast-panel {
+    padding: 12px;
+  }
+  .results-panel .routes-heading {
+    margin-bottom: 8px;
+  }
+  .results-panel .route-option {
+    padding: 12px;
+  }
+  .results-panel .forecast-heading > div {
+    display: none;
+  }
+  .results-panel .forecast-heading {
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .results-panel .forecast-time {
+    margin-top: 0;
+  }
+  .results-panel .legend {
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+  .map-tools {
+    top: 12px;
+    left: 12px;
   }
 }

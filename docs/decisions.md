@@ -40,6 +40,16 @@ Fractional forecast hours interpolate wind/rain/snow between adjacent preloaded 
 
 No rest, break, loading, live traffic, or duty-clock scheduling is included. The Rules page explains these assumptions. The preview cannot demonstrate a legally feasible schedule or validate forecast accuracy.
 
+## Device location and appearance
+
+`watchPosition` is opt-in, requests high accuracy, accepts fixes cached for at most 10 seconds, and uses a 15-second acquisition timeout. Coordinates, accuracy, and timestamps must be finite and coordinates in range. Permission denial stops the watch; transient acquisition errors remain visible while waiting for another fix. Fixes older than 60 seconds are labelled stale. Browser offline events and leaving the planner clear the watch; returning online or to the planner resumes an already-enabled session. Late callbacks after cleanup are ignored. Stop removes the marker and fix. Reloading starts with location off.
+
+The reported accuracy sets a meter-radius circle; it is not independently calibrated here. The first fix centers the map once, subsequent updates move the marker without overriding manual panning, and settings provides Center on location. Device coordinates are not sent to the planner API or persisted. The browser may use its own location services, and loading basemap tiles reveals the viewed tile area to the tile provider. GPS is independent of simulated driving, forecast time, weather retrieval, route ranking, and ELD records.
+
+`navigator.onLine` is a browser connectivity hint, not proof that any provider is reachable. Offline watching pauses as requested; an online state cannot guarantee a fix or successful weather retrieval. Geolocation needs browser permission and a secure context, with localhost available for local evaluation. Browser checks emulate native geolocation and permissions; physical GPS accuracy and background-device behavior are unverified. Sources: [MDN watchPosition](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/watchPosition), [MDN onLine](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/onLine).
+
+Appearance is Light by default, with Dark and opt-in Auto (local 20:00 through 05:59). It checks time every 30 seconds and on visibility changes; this is a clock schedule, not a sunset calculation. Only the appearance choice is saved, with an in-memory fallback when storage is blocked. CSS tokens cover app surfaces, text, controls, and badges; a filter affects only raster tiles, preserving route/weather overlays and the existing tile provider. No automatic changes are based on trip departure or GPS.
+
 ## ELD and scheduling scope
 
 Rules (`/rules`) separates the assessment policy from regulatory guidance. It describes the general U.S. federal interstate property-carrying baseline; it is not a rules engine for every jurisdiction or exemption. No Spotter ELD capability or integration is assumed. This app reads no duty logs, does not authenticate a driver, and does not establish remaining driving/window/break/cycle availability.

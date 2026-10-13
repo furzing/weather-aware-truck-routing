@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { colors, dateTime, type Plan } from './contracts';
 import { fieldLevel, interpolateWeather } from './weatherField';
 import { forecastAtHour } from './simulation';
+import type { LocationFix } from './useLocation';
 
 const latLng = ([lon, lat]: [number, number]): L.LatLngTuple => [lat, lon];
 
@@ -16,6 +17,9 @@ export function RouteMap({
   onSelect,
   fitRequest,
   driverPosition,
+  locationFix,
+  locationStale,
+  locationFocus,
 }: {
   plan: Plan | null;
   selectedId: string;
@@ -25,11 +29,16 @@ export function RouteMap({
   onSelect: (id: string) => void;
   fitRequest: number;
   driverPosition: [number, number] | null;
+  locationFix: LocationFix | null;
+  locationStale: boolean;
+  locationFocus: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const boundsRef = useRef<L.LatLngBounds | null>(null);
   const driverRef = useRef<L.Marker | null>(null);
+  const gpsMarker = useRef<L.Marker | null>(null);
+  const gpsAccuracy = useRef<L.Circle | null>(null);
   const weatherScale = driverPosition ? 6 : 4;
   const clickRef = useRef(onSelect);
   useEffect(() => {
@@ -71,6 +80,8 @@ export function RouteMap({
       map.remove();
       mapRef.current = null;
       driverRef.current = null;
+      gpsMarker.current = null;
+      gpsAccuracy.current = null;
     };
   }, []);
   useEffect(() => {
@@ -231,6 +242,55 @@ export function RouteMap({
     if (map && route && focusIndex !== null && route.checkpoints[focusIndex])
       map.panTo(latLng(route.checkpoints[focusIndex].coordinate), { animate: false });
   }, [plan, selectedId, focusIndex]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!locationFix) {
+      gpsMarker.current?.remove();
+      gpsAccuracy.current?.remove();
+      gpsMarker.current = null;
+      gpsAccuracy.current = null;
+      return;
+    }
+    const point = latLng(locationFix.coordinate);
+    if (!gpsMarker.current) {
+      gpsAccuracy.current = L.circle(point, {
+        radius: locationFix.accuracy,
+        color: '#225cc7',
+        weight: 1,
+        fillOpacity: 0.08,
+        interactive: false,
+      }).addTo(map);
+      gpsMarker.current = L.marker(point, {
+        keyboard: false,
+        zIndexOffset: 1100,
+        icon: L.divIcon({
+          className: 'gps-marker',
+          html: '<span></span>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+      })
+        .addTo(map)
+        .bindTooltip('Device location');
+      map.setView(point, Math.max(map.getZoom(), 13), { animate: false });
+    }
+    gpsMarker.current
+      .setLatLng(point)
+      .setTooltipContent(
+        `${locationStale ? 'Last device fix' : 'Device location'} · ±${Math.round(locationFix.accuracy)} m`,
+      );
+    gpsAccuracy.current?.setLatLng(point).setRadius(locationFix.accuracy);
+    const element = gpsMarker.current.getElement();
+    if (element) {
+      element.classList.toggle('gps-stale', locationStale);
+      element.dataset.coordinate = locationFix.coordinate.join(',');
+    }
+  }, [locationFix, locationStale]);
+  useEffect(() => {
+    if (locationFocus && gpsMarker.current)
+      mapRef.current?.setView(gpsMarker.current.getLatLng(), 13, { animate: false });
+  }, [locationFocus]);
   return (
     <div
       ref={container}

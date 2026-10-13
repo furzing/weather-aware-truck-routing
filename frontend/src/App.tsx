@@ -20,6 +20,10 @@ import { Rules } from './Rules';
 import { CheckpointDrawer } from './CheckpointDrawer';
 import { SimulationControls } from './SimulationControls';
 import { hasTiming, initialSimulation, positionAt } from './simulation';
+import { useAppearance } from './useAppearance';
+import { useLocation } from './useLocation';
+import { MapTools } from './MapTools';
+import { PlanningProgress } from './PlanningProgress';
 import {
   colors,
   dateTime,
@@ -45,6 +49,9 @@ export default function App() {
     window.location.pathname.startsWith('/rules') ? 'rules' : 'planner',
   );
   const [simulation, setSimulation] = useState(initialSimulation);
+  const { appearance, setAppearance } = useAppearance();
+  const location = useLocation(page === 'planner');
+  const [locationFocus, setLocationFocus] = useState(0);
   useEffect(() => {
     const onPopState = () => {
       setSimulation((previous) => ({ ...previous, playing: false }));
@@ -149,6 +156,25 @@ export default function App() {
     setSelectedId(id);
     setFocusIndex(null);
     setSimulation((current) => ({ ...current, playing: false, elapsed: 0 }));
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      setMobilePanel(false);
+      window.requestAnimationFrame(() =>
+        document.querySelector<HTMLButtonElement>('.mobile-planning-actions button')?.focus(),
+      );
+    }
+  }
+  function openMobileView(view: 'routes' | 'weather') {
+    setSidebarView(view);
+    setEditingTrip(false);
+    setMobilePanel(!(mobilePanel && sidebarView === view && !editingTrip));
+    setCheckpointsOpen(false);
+    setSimulation((current) => ({ ...current, visible: false, playing: false }));
+  }
+  function closeMobilePanel() {
+    setMobilePanel(false);
+    window.requestAnimationFrame(() =>
+      document.querySelector<HTMLButtonElement>('.mobile-panel-toggle')?.focus(),
+    );
   }
   async function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -193,6 +219,10 @@ export default function App() {
       setSimulation(initialSimulation);
       setFocusIndex(null);
       setPlannedInputs(currentInputs);
+      if (window.matchMedia('(max-width: 760px)').matches)
+        window.requestAnimationFrame(() =>
+          document.querySelector<HTMLButtonElement>('.mobile-planning-actions button')?.focus(),
+        );
     } catch (e) {
       if (request.signal.aborted)
         setError(
@@ -229,9 +259,15 @@ export default function App() {
               className="mobile-panel-toggle"
               type="button"
               aria-expanded={mobilePanel}
-              onClick={() => setMobilePanel(!mobilePanel)}
+              aria-controls="planning-panel"
+              onClick={() => {
+                setEditingTrip(true);
+                setMobilePanel(!(mobilePanel && editingTrip));
+                setCheckpointsOpen(false);
+                setSimulation((current) => ({ ...current, visible: false, playing: false }));
+              }}
             >
-              Trip & weather
+              {plan ? 'Edit trip' : 'Trip details'}
             </button>
           </header>
           {plan && (
@@ -239,22 +275,16 @@ export default function App() {
               <button
                 type="button"
                 aria-pressed={mobilePanel && sidebarView === 'routes' && !editingTrip}
-                onClick={() => {
-                  setSidebarView('routes');
-                  setEditingTrip(false);
-                  setMobilePanel(!(mobilePanel && sidebarView === 'routes' && !editingTrip));
-                }}
+                aria-controls="planning-panel"
+                onClick={() => openMobileView('routes')}
               >
                 Show routes
               </button>
               <button
                 type="button"
                 aria-pressed={mobilePanel && sidebarView === 'weather' && !editingTrip}
-                onClick={() => {
-                  setSidebarView('weather');
-                  setEditingTrip(false);
-                  setMobilePanel(!(mobilePanel && sidebarView === 'weather' && !editingTrip));
-                }}
+                aria-controls="planning-panel"
+                onClick={() => openMobileView('weather')}
               >
                 Show weather
               </button>
@@ -263,7 +293,33 @@ export default function App() {
               </a>
             </nav>
           )}
-          <div className="sidebar-body">
+          <div
+            id="planning-panel"
+            className={`sidebar-body ${plan && !editingTrip ? 'results-panel' : 'editing-panel'}`}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && window.matchMedia('(max-width: 760px)').matches) {
+                event.stopPropagation();
+                closeMobilePanel();
+              }
+            }}
+          >
+            <div className="mobile-panel-heading">
+              <strong>
+                {editingTrip
+                  ? 'Trip details'
+                  : sidebarView === 'routes'
+                    ? 'Route options'
+                    : 'Corridor forecast'}
+              </strong>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close planning panel"
+                onClick={closeMobilePanel}
+              >
+                <X size={18} />
+              </button>
+            </div>
             <nav className="planner-navigation" aria-label="Planner navigation">
               <span aria-current="page">Planner</span>
               <a href="/rules" onClick={navigate}>
@@ -353,6 +409,7 @@ export default function App() {
                       )}
                     </button>
                   </fieldset>
+                  {busy && <PlanningProgress />}
                   {busy && (
                     <button
                       type="button"
@@ -604,6 +661,15 @@ export default function App() {
               onSelect={selectRoute}
               fitRequest={fitRequest}
               driverPosition={driverPosition}
+              locationFix={location.fix}
+              locationStale={location.stale || !location.online || !!location.error}
+              locationFocus={locationFocus}
+            />
+            <MapTools
+              appearance={appearance}
+              onAppearance={setAppearance}
+              location={location}
+              onCenter={() => setLocationFocus((previous) => previous + 1)}
             />
           </section>
           {simulation.visible && plan && route && (

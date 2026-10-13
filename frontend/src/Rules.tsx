@@ -229,6 +229,27 @@ export function Rules({
             It has not been updated. Check official weather warnings and road reports before
             departure and as conditions change.
           </p>
+          <details>
+            <summary>Device location and night mode</summary>
+            <p>
+              Map settings offers Light, Dark, or Auto appearance. Auto uses 8 PM–6 AM in the
+              device’s local timezone, not the trip’s departure time. Only this appearance choice is
+              saved in browser storage.
+            </p>
+            <p>
+              Device location starts only when you enable it and grant browser permission. The blue
+              marker and accuracy circle show the device’s reported fix; they are separate from the
+              simulated truck. Internet access alone does not guarantee a location fix. Watching
+              pauses when the browser reports offline or you open Rules. Old fixes and errors are
+              labelled; Stop device location removes the marker and ends the watch.
+            </p>
+            <p>
+              Location is not sent to the planner API or stored by this app. Your browser may use
+              device location services, and map tiles still load for the area you view. GPS does not
+              move the forecast clock, reroute the trip, update weather, or supply ELD records.
+              Hosted location access requires HTTPS; localhost is supported for local evaluation.
+            </p>
+          </details>
         </section>
 
         <section id="hos" aria-labelledby="hos-title">

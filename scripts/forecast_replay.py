@@ -39,7 +39,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=["record", "replay"])
     parser.add_argument("--file", type=Path, default=ROOT / "output/provider-recording.json")
+    parser.add_argument(
+        "--browser-check",
+        type=Path,
+        help="During replay, prepare an ignored browser script with captured plan data.",
+    )
     args = parser.parse_args()
+    if args.browser_check and args.mode != "replay":
+        parser.error("--browser-check requires replay mode")
     if args.mode == "record":
         cache.clear()
         payload = {
@@ -99,6 +106,18 @@ if __name__ == "__main__":
             raise SystemExit(
                 "Replay differs from the recorded plan. Investigate before updating the baseline."
             )
+        if args.browser_check:
+            source = args.browser_check.read_text(encoding="utf-8")
+            marker = "const capturedPlan = null;"
+            if source.count(marker) != 1:
+                raise SystemExit("Browser check must contain exactly one captured-plan marker.")
+            target = ROOT / "output/playwright" / f"{args.browser_check.stem}-replay.js"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                source.replace(marker, f"const capturedPlan = {json.dumps(plan)};"),
+                encoding="utf-8",
+            )
+            print(f"Prepared captured-plan UI check: {target}")
         print(
             f"Offline replay matched: {len(plan['routes'])} routes; recommendation {plan['recommended_id']}"
         )
