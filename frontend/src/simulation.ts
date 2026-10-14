@@ -10,24 +10,46 @@ export const initialSimulation: Simulation = {
   rate: 720,
 };
 
+const timingCache = new WeakMap<Route, boolean>();
+export function journeyDuration(route: Route) {
+  return route.total_duration_s ?? route.duration_s;
+}
+export function stopAt(route: Route, seconds: number) {
+  return route.stops?.find(
+    (stop) => seconds >= stop.start_elapsed_s && seconds < stop.end_elapsed_s,
+  );
+}
+export function drivingAt(route: Route, seconds: number) {
+  let driving = seconds;
+  for (const stop of route.stops ?? []) {
+    if (seconds < stop.start_elapsed_s) break;
+    if (seconds < stop.end_elapsed_s) return stop.driving_elapsed_s;
+    driving -= stop.duration_s;
+  }
+  return Math.max(0, Math.min(route.duration_s, driving));
+}
 export function hasTiming(route: Route) {
+  const known = timingCache.get(route);
+  if (known !== undefined) return known;
   if (!(route.duration_s > 0 && route.duration_s <= 48 * 3600)) return false;
   const times = route.geometry_elapsed_s;
-  return (
+  const valid =
     !!times &&
     times.length === route.geometry.coordinates.length &&
     times.length >= 2 &&
     times[0] === 0 &&
     Math.abs(times[times.length - 1] - route.duration_s) < 0.01 &&
-    times.every((time, i) => Number.isFinite(time) && time >= 0 && (!i || time >= times[i - 1]))
-  );
+    times.every((time, i) => Number.isFinite(time) && time >= 0 && (!i || time >= times[i - 1]));
+  const result = valid && journeyDuration(route) <= 48 * 3600;
+  timingCache.set(route, result);
+  return result;
 }
 
 export function positionAt(route: Route, seconds: number): Coordinate | null {
   if (!hasTiming(route)) return null;
   const points = route.geometry.coordinates;
   const times = route.geometry_elapsed_s!;
-  const elapsed = Math.max(0, Math.min(route.duration_s, seconds));
+  const elapsed = drivingAt(route, seconds);
   if (elapsed === 0) return points[0];
   if (elapsed >= route.duration_s) return points[points.length - 1];
   let left = 0,

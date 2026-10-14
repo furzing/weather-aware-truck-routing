@@ -71,7 +71,9 @@ export function Rules({
             arrival. The same departure, load, and checkpoint spacing apply to all three.
           </p>
           <ol>
-            <li>Exclude any route containing a No Travel checkpoint.</li>
+            <li>
+              Exclude any route containing a No Travel checkpoint or sampled planned-stop weather.
+            </li>
             <li>Prefer fewer Severe miles, then fewer High miles.</li>
             <li>Compare average risk, weighted by miles.</li>
             <li>Use estimated driving time to break remaining ties.</li>
@@ -218,10 +220,14 @@ export function Rules({
               corridor forecast slider exits the drive preview.
             </p>
             <p>
-              This assumes continuous driving without breaks, rest, loading, or live traffic. It is
-              not GPS tracking or a legal schedule. A No Travel route can be inspected but stays
-              excluded from recommendations. Check official road reports and the driver’s duty
-              records before acting.
+              With standard U.S. breaks & rest enabled, arrivals and playback include a 30-minute
+              break before driving beyond 8 cumulative hours and 10 hours off duty before driving
+              beyond 11 hours per shift. The truck stays still while forecast time advances. The
+              optional continuous-driving view excludes those stops. Neither mode includes loading,
+              inspections, parking searches, or live traffic. This is not GPS tracking or a verified
+              legal schedule. A No Travel route can be inspected but stays excluded from
+              recommendations. Check official road reports and the driver’s duty records before
+              acting.
             </p>
           </details>
           <p>
@@ -257,10 +263,15 @@ export function Rules({
           <div className="rules-notice">
             <strong>No ELD is connected. Driver clocks are not checked.</strong>
             <p>
-              Durations and checkpoint arrivals assume continuous driving on the routing provider’s
-              car profile. They exclude breaks, rest, loading, inspections, and traffic delays. Use
-              the driver’s actual duty records to build the schedule; weather at the resulting
-              arrivals may differ.
+              Trip duration separates driving from planned breaks and rest. The default standard
+              U.S. schedule assumes the driver starts immediately after qualifying rest, has the
+              full 11-hour driving and 14-hour duty windows available, and has sufficient 60/70-hour
+              cycle availability. With no other duty included, each modeled shift stays within those
+              windows. Actual prior duty, loading, inspections, exceptions, and traffic are not
+              evaluated. Confirm the driver’s ELD records; a 10-hour rest does not reset the weekly
+              cycle. Estimated stop coordinates do not identify legal or available truck parking.
+              The planner samples weather through each stop and excludes a route if any sampled stop
+              weather is No Travel. Stop exposure does not add driven miles.
             </p>
           </div>
           <p>

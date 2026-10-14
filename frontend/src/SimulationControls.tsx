@@ -1,6 +1,6 @@
 import { Pause, Play, RotateCcw, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { conditionsAt, positionAt, type Simulation } from './simulation';
+import { conditionsAt, positionAt, journeyDuration, stopAt, type Simulation } from './simulation';
 import { dateTime, duration, labels, type Plan, type Route } from './contracts';
 
 export function SimulationControls({
@@ -22,7 +22,9 @@ export function SimulationControls({
   }, []);
   const coordinate = positionAt(route, state.elapsed);
   const weather = coordinate ? conditionsAt(plan, coordinate, state.elapsed / 3600) : null;
-  const arrived = state.elapsed >= route.duration_s;
+  const total = journeyDuration(route);
+  const stopped = stopAt(route, state.elapsed);
+  const arrived = state.elapsed >= total;
   const next = arrived
     ? undefined
     : route.checkpoints.find((point) => point.elapsed_s >= state.elapsed && point.risk.level >= 2);
@@ -61,20 +63,20 @@ export function SimulationControls({
           aria-label="Simulated driving time"
           type="range"
           min={0}
-          max={Math.ceil(route.duration_s)}
+          max={Math.ceil(total)}
           step={1}
-          value={arrived ? Math.ceil(route.duration_s) : Math.round(state.elapsed)}
-          aria-valuetext={`${duration(state.elapsed)} of ${duration(route.duration_s)}`}
+          value={arrived ? Math.ceil(total) : Math.round(state.elapsed)}
+          aria-valuetext={`${duration(state.elapsed)} of ${duration(total)} including planned stops`}
           onChange={(event) =>
             onChange({
               ...state,
-              elapsed: Math.min(route.duration_s, Number(event.target.value)),
+              elapsed: Math.min(total, Number(event.target.value)),
               playing: false,
             })
           }
         />
         <span className="simulation-elapsed">
-          {duration(state.elapsed)} / {duration(route.duration_s)}
+          {duration(state.elapsed)} / {duration(total)}
         </span>
         <label className="simulation-speed">
           <span className="sr-only">Simulation speed</span>
@@ -97,6 +99,12 @@ export function SimulationControls({
         </button>
       </div>
       <div className="simulation-conditions">
+        {stopped && (
+          <strong className="simulation-stop">
+            Planned {stopped.kind === 'rest' ? '10-hour rest' : '30-minute break'} · resumes{' '}
+            {dateTime(stopped.departure)}
+          </strong>
+        )}
         <span>
           {arrived ? 'Estimated arrival' : 'Estimated conditions'}
           {weather ? (
@@ -124,13 +132,17 @@ export function SimulationControls({
         {weather && weather.level >= 2 && (
           <span>Check road reports; reduce speed or stop as conditions require.</span>
         )}
-        {route.duration_s > 11 * 3600 ? (
+        {!plan.schedule_breaks && route.duration_s > 11 * 3600 ? (
           <span>Over the standard U.S. 11-hour allowance: plan rest or driver changes.</span>
-        ) : route.duration_s > 8 * 3600 ? (
+        ) : !plan.schedule_breaks && route.duration_s > 8 * 3600 ? (
           <span>Over 8 hours driving: review break timing against duty records.</span>
         ) : null}
       </div>
-      <p className="simulation-disclaimer">Estimate · no rest/traffic · not live tracking.</p>
+      <p className="simulation-disclaimer">
+        {plan.schedule_breaks
+          ? 'Planned breaks/rest included · fresh duty clocks assumed · no traffic or verified parking.'
+          : 'Estimate · no rest/traffic · not live tracking.'}
+      </p>
     </section>
   );
 }

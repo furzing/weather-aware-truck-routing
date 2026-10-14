@@ -1,6 +1,35 @@
 # Deployment handoff
 
-The private repository is [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing). The app runs locally through `scripts/start.ps1`. Cloudflare configuration is prepared; no public deployment has been created. Docker is unavailable on this machine, so container build/smoke verification runs in GitHub Actions.
+## Railway (selected target)
+
+Railway builds this React + Django application from GitHub using Railpack. No local Docker installation or Cloudflare subscription is required. One Waitress service serves React and Django from the same origin. No database or persistent volume is needed.
+
+1. Create a Railway project from the private `furzing/weather-aware-truck-routing` repository, granting the GitHub integration access. Use branch `main` and the repository root.
+2. Use the committed `railway.json`: **Railpack** builder, build command `bash scripts/build.sh`, start command `python scripts/serve.py`, health path `/api/health`. Select Railpack explicitly if the dashboard detects the optional Dockerfile. `railpack.json` selects Python 3.13 and Node 24. The build installs locked dependencies, builds React, and collects static files.
+3. Add a fresh random `SECRET_KEY` in Railway Variables and set `DEBUG=false`. Generate it with a password manager; never put it in source or chat. The app reads `RAILWAY_PUBLIC_DOMAIN` for its allowed host and permits Railway's health-check hostname. Add any custom hostnames explicitly to `ALLOWED_HOSTS`; do not use `*`.
+4. Leave `TRUST_PROXY=false` and `SECURE_SSL_REDIRECT=false` for this configuration. Public HTTPS terminates at Railway. Verify the platform's HTTP-to-HTTPS behavior externally; the app does not trust arbitrary forwarded headers.
+5. Generate a public domain in Networking and deploy/redeploy with that hostname available. The server binds `0.0.0.0` and reads Railway's `PORT`; no override is needed. Keep one replica because cache and admission limits are process-local.
+6. Run the checks below, test a real phone, and record the deployed commit, deployment identifier, results, and Loom URL before submitting.
+
+```powershell
+cd E:\spotter\weather-aware-truck-routing
+$deploymentUrl = "https://YOUR-DOMAIN.up.railway.app"
+.\.venv\Scripts\python.exe scripts\wait_for_server.py "$deploymentUrl/api/health"
+.\.venv\Scripts\python.exe scripts\production_smoke.py $deploymentUrl
+.\.venv\Scripts\python.exe scripts\live_smoke.py $deploymentUrl
+```
+
+Health/static checks do not prove provider availability. The live check makes one bounded comparison. Check city search, three routes, delayed checkpoint ETAs, planned stops, playback holding during stops, weather slider/layer, `/rules` direct refresh, mobile panels, and GPS permission/denial on HTTPS.
+
+For startup failures, inspect Railway logs for missing secrets, build versions, and the start command. For `DisallowedHost`, check the public domain and health-check hostname. If the UI loads but planning fails, inspect provider errors and outbound access; never substitute synthetic safe forecasts.
+
+Railway currently lists a 30-day trial with $5 credit, a Free plan with a small monthly allowance, and Hobby with $5 minimum usage including $5 credit. Resource usage can exceed included credits. Check account eligibility, current pricing, and usage limits. No paid plan or public Railway deployment has been created during preparation.
+
+Sources: [Django deployment](https://docs.railway.com/guides/django), [config as code](https://docs.railway.com/reference/config-as-code), [Railpack configuration](https://railpack.com/config/file/), [pricing](https://railway.com/pricing).
+
+## Other prepared paths
+
+The private repository is [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing). The app runs locally through `scripts/start.ps1`. Cloudflare is an optional prepared path; Railway is the selected target. No public deployment has been created. Docker is unavailable on this machine, so container build/smoke verification runs in GitHub Actions.
 
 The prepared image serves the built React application, Django API, and compressed static files from one origin using Waitress. No writable application storage, migrations, database, background worker, or external cache is required for this assessment. Rebuild to roll back to a previous revision; there are no persisted trip records to migrate.
 

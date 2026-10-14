@@ -2,8 +2,12 @@ async (page) => {
   // Run with playwright-cli run-code --filename scripts/browser-checks.js.
   // Provider-failure and all-blocked cases below are explicitly injected UI tests.
   const check = (condition, message) => { if (!condition) throw new Error(message); };
+  const capturedPlan = null;
+  const capturedFinePlan = null;
+  const base = page.url().startsWith('http://127.0.0.1:8000') ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:5173';
+  if (capturedPlan) await page.context().route('**/api/plan', request => request.fulfill({json:request.request().postDataJSON().spacing_miles===10 ? capturedFinePlan : capturedPlan}));
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto('http://127.0.0.1:5173');
+  await page.goto(base);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.getByRole('button', { name: 'Compare routes', exact: true }).click();
@@ -90,9 +94,9 @@ async (page) => {
   // A spatially varying synthetic field tests rendering; it is not live severe weather.
   await page.getByRole('button', { name: 'Edit trip', exact: true }).click();
   await page.route('**/api/plan', async route => {
-    const upstream = await route.fetch({ timeout: 95000 });
-    check(upstream.status() === 200, 'Need a valid plan for the field rendering fixture');
-    const data = await upstream.json();
+    const upstream = capturedPlan ? null : await route.fetch({ timeout: 95000 });
+    check(capturedPlan || upstream.status() === 200, 'Need a valid plan for the field rendering fixture');
+    const data = capturedPlan ? structuredClone(capturedPlan) : await upstream.json();
     const longitudes = data.corridor.map(c => c.coordinate[0]);
     const left = Math.min(...longitudes), width = Math.max(...longitudes) - left;
     for (const c of data.corridor) for (const hour of c.hours) {
@@ -102,12 +106,13 @@ async (page) => {
         : hour.wind_mph >= 45 || (hour.wind_mph >= 35 && data.load_lb > 40000) ? 3
         : hour.wind_mph >= 35 ? 2 : hour.wind_mph >= 25 ? 1 : 0;
     }
-    await route.fulfill({ response: upstream, json: data });
+    await route.fulfill({ status:200, json: data });
   });
   await page.getByRole('button', { name: 'Compare routes', exact: true }).click();
   await page.getByRole('button', { name: 'Edit trip', exact: true }).waitFor({ timeout: 95000 });
   await page.getByRole('button', { name: 'Weather', exact: true }).click();
   await page.getByRole('button', { name: /^Checkpoints \(/ }).click();
+  await page.waitForFunction(() => document.querySelector('.weather-field')?.dataset.hour !== undefined);
   const fieldColors = await page.locator('.weather-field').evaluate(canvas => {
     const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     const palette = [[32,114,88], [166,106,9], [210,91,35], [177,47,66], [98,42,112]];
@@ -124,9 +129,9 @@ async (page) => {
   await page.getByRole('button', { name: 'Routes', exact: true }).click();
   await page.getByRole('button', { name: 'Edit trip', exact: true }).click();
   await page.route('**/api/plan', async route => {
-    const upstream = await route.fetch({ timeout: 95000 });
-    check(upstream.status() === 200, 'Need a valid upstream response to inject blocked UI scenario');
-    const data = await upstream.json();
+    const upstream = capturedPlan ? null : await route.fetch({ timeout: 95000 });
+    check(capturedPlan || upstream.status() === 200, 'Need a valid response to inject blocked UI scenario');
+    const data = capturedPlan ? structuredClone(capturedPlan) : await upstream.json();
     data.recommended_id = null;
     data.recommendation_reason = 'All blocked — injected browser test.';
     for (const r of data.routes) {
@@ -136,7 +141,7 @@ async (page) => {
       for (const s of r.segments) s.level = 4;
     }
     for (const c of data.corridor) for (const hour of c.hours) { hour.level = 4; hour.wind_mph = 60; }
-    await route.fulfill({ response: upstream, json: data });
+    await route.fulfill({ status:200, json: data });
   });
   await page.getByRole('button', { name: 'Compare routes', exact: true }).click();
   await page.getByText('No route recommended', { exact: true }).waitFor({ timeout: 95000 });
@@ -148,5 +153,5 @@ async (page) => {
   await page.getByRole('button', { name: 'Compare routes', exact: true }).click();
   await page.locator('.route-option').first().waitFor({ timeout: 95000 });
   await page.screenshot({ path: 'output/playwright/desktop.png' });
-  return { passed: true, mapLayoutAt1365x679: layout, desktop: '1440×1000', mobileWidths: [390, 320], sliderAPICalls: apiCalls, axeViolations: axe.violations.length, javascriptErrors: errors, injectedScenarios: ['provider failure', 'all routes No Travel', 'spatial forecast field'], fieldColors };
+  return { passed: true, source: capturedPlan ? "captured/labelled fixture" : "live providers", mapLayoutAt1365x679: layout, desktop: '1440×1000', mobileWidths: [390, 320], sliderAPICalls: apiCalls, axeViolations: axe.violations.length, javascriptErrors: errors, injectedScenarios: ['provider failure', 'all routes No Travel', 'spatial forecast field'], fieldColors };
 }

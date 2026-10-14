@@ -3,6 +3,8 @@ async (page) => {
   const check = (value, message) => { if (!value) throw new Error(message); };
   const base = page.url().startsWith('http://127.0.0.1:8000') ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:5173';
   const errors = [];
+  const capturedPlan = null;
+  if (capturedPlan) await page.context().route('**/api/plan', request=>request.fulfill({json:capturedPlan}));
   await page.unroute('**/api/plan');
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1365, height: 679 });
@@ -154,9 +156,11 @@ async (page) => {
     const bytes = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     return bytes.reduce((sum, value) => (sum + value) % 1000000007, 0);
   });
+  await page.waitForFunction(() => Number(document.querySelector('.weather-field')?.dataset.hour) === 0);
   const departureColors = await canvasChecksum();
   await page.getByRole('slider', { name: 'Simulated driving time' }).focus();
   await page.keyboard.press('End');
+  await page.waitForFunction(hour=>Math.abs(Number(document.querySelector('.weather-field')?.dataset.hour)-hour)<0.001, (route.total_duration_s ?? route.duration_s)/3600);
   check(await canvasChecksum() !== departureColors, 'Weather canvas must respond to simulated time');
   check(await page.locator('.simulation-conditions .risk-badge').innerText() === 'No Travel', 'Driver condition estimate must respond to time');
   check(await page.locator('.simulation-excluded').count() === 1, 'Preview must preserve the excluded-route warning');
@@ -173,5 +177,5 @@ async (page) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   check(errors.length === 0, `Page errors: ${errors.join('; ')}`);
   await page.reload();
-  return { passed: true, base, liveTimingVertices: route.geometry_elapsed_s.length, simulationAPICalls: requests, drawerMapFixedDuringDrag: true, mobileSizes: ['390×844','320×667','844×390'], injectedTemporalStorm: true, javascriptErrors: errors };
+  return { passed: true, source: capturedPlan ? "captured/labelled fixture" : "live providers", base, timingVertices: route.geometry_elapsed_s.length, simulationAPICalls: requests, drawerMapFixedDuringDrag: true, mobileSizes: ['390×844','320×667','844×390'], injectedTemporalStorm: true, javascriptErrors: errors };
 }

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan, Route } from './contracts';
-import { conditionsAt, forecastAtHour, hasTiming, positionAt } from './simulation';
+import {
+  conditionsAt,
+  forecastAtHour,
+  hasTiming,
+  positionAt,
+  drivingAt,
+  journeyDuration,
+  stopAt,
+} from './simulation';
 
 const route = {
   duration_s: 110,
@@ -17,6 +25,22 @@ const route = {
 } as Route;
 
 describe('driving preview', () => {
+  it('holds the truck during stops, advances the weather clock, and resumes at the same location', () => {
+    const scheduled = {
+      ...route,
+      total_duration_s: 150,
+      stops: [{ driving_elapsed_s: 10, start_elapsed_s: 10, end_elapsed_s: 50, duration_s: 40 }],
+    } as Route;
+    expect(journeyDuration(scheduled)).toBe(150);
+    expect(positionAt(scheduled, 10)).toEqual([-87, 42]);
+    expect(positionAt(scheduled, 30)).toEqual([-87, 42]);
+    expect(positionAt(scheduled, 50)).toEqual([-87, 42]);
+    expect(stopAt(scheduled, 30)).toBeDefined();
+    expect(stopAt(scheduled, 50)).toBeUndefined();
+    expect(drivingAt(scheduled, 100)).toBe(60);
+    expect(positionAt(scheduled, 100)).toEqual([-87, 42.5]);
+    expect(positionAt(scheduled, 150)).toEqual([-87, 43]);
+  });
   it('follows road turns using segment time, not straight endpoint distance', () => {
     expect(positionAt(route, 5)).toEqual([-87.5, 42]);
     expect(positionAt(route, 10)).toEqual([-87, 42]);

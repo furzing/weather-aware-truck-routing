@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from .geometry import checkpoints, corridor, geometry_elapsed
 from .providers import ProviderError, Providers, location_key, weather_at
 from .risk import classify, explain_recommendation, recommendation, summarize
+from .schedule import PlanningLimitError, arrival_elapsed, planned_stops
 
 
 def build_plan(data):
@@ -13,12 +14,18 @@ def build_plan(data):
         )
         cells = corridor(raw_routes)
         sampled = [checkpoints(r, data["spacing_miles"]) for r in raw_routes]
+        schedules = [planned_stops(r, data.get("schedule_breaks", True)) for r in raw_routes]
         forecasts = provider.forecasts(
-            [p["coordinate"] for route in sampled for p in route] + [c["coordinate"] for c in cells]
+            [p["coordinate"] for route in sampled for p in route]
+            + [s["coordinate"] for stops in schedules for s in stops]
+            + [c["coordinate"] for c in cells]
         )
         routes = []
         for i, (raw, points) in enumerate(zip(raw_routes, sampled)):
+            stops = schedules[i]
             for p in points:
+                p["driving_elapsed_s"] = p["elapsed_s"]
+                p["elapsed_s"] = arrival_elapsed(p["elapsed_s"], stops)
                 eta = data["departure"] + timedelta(seconds=p["elapsed_s"])
                 weather = weather_at(forecasts[location_key(p["coordinate"])], eta)
                 p.update(
@@ -27,6 +34,44 @@ def build_plan(data):
                     risk=classify(
                         weather["wind_mph"], weather["rain_in"], weather["snow_in"], data["load_lb"]
                     ),
+                )
+            for stop in stops:
+                start = data["departure"] + timedelta(seconds=stop["start_elapsed_s"])
+                end = data["departure"] + timedelta(seconds=stop["end_elapsed_s"])
+                # Include both endpoints and every hourly boundary during a stop.
+                at = start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+                samples = [start, end]
+                while at < end:
+                    samples.append(at)
+                    at += timedelta(hours=1)
+                assessed = []
+                for at in samples:
+                    weather = weather_at(forecasts[location_key(stop["coordinate"])], at)
+                    assessed.append(
+                        {
+                            "at": at.isoformat(),
+                            "weather": weather,
+                            "risk": classify(
+                                weather["wind_mph"],
+                                weather["rain_in"],
+                                weather["snow_in"],
+                                data["load_lb"],
+                            ),
+                        }
+                    )
+                worst = max(assessed, key=lambda item: item["risk"]["level"])
+                stop.update(
+                    arrival=start.isoformat(),
+                    departure=end.isoformat(),
+                    weather=worst["weather"],
+                    risk=worst["risk"],
+                    weather_samples=assessed,
+                )
+            summary = summarize(points, raw["duration"])
+            if stops:
+                summary["max_risk"] = max(summary["max_risk"], *(s["risk"]["level"] for s in stops))
+                summary["eligible"] = summary["eligible"] and all(
+                    s["risk"]["level"] < 4 for s in stops
                 )
             segments = [
                 {
@@ -53,9 +98,12 @@ def build_plan(data):
                     "segments": segments,
                     "distance_miles": raw["distance"] / 1609.344,
                     "duration_s": raw["duration"],
+                    "stop_duration_s": sum(s["duration_s"] for s in stops),
+                    "total_duration_s": raw["duration"] + sum(s["duration_s"] for s in stops),
+                    "stops": stops,
                     "arrival": points[-1]["eta"],
                     "checkpoints": points,
-                    "summary": summarize(points, raw["duration"]),
+                    "summary": summary,
                 }
             )
         hours = [(data["departure"] + timedelta(hours=h)).isoformat() for h in range(49)]
@@ -88,6 +136,7 @@ def build_plan(data):
             "destination": data["destination"],
             "load_lb": data["load_lb"],
             "spacing_miles": data["spacing_miles"],
+            "schedule_breaks": data.get("schedule_breaks", True),
             "sources": {
                 "routing": "OSRM / OpenStreetMap (car profile)",
                 "weather": "Open-Meteo",
@@ -97,10 +146,15 @@ def build_plan(data):
                 "forecast_cached_batches": provider.forecast_cache_hits,
             },
             "warnings": [
-                "Assessment planning tool. Routes do not check truck height, road restrictions, traffic, rest stops, or hours of service.",
+                "Assessment planning tool. Car-profile routes do not check truck restrictions, parking availability, or traffic.",
+                "Scheduled U.S. breaks/rest assume a fresh 11-hour/14-hour shift and sufficient 60/70-hour cycle availability. No ELD clocks, prior duty, loading, inspections, exceptions, or cross-border rules are evaluated. Stop locations are estimates, not verified parking."
+                if data.get("schedule_breaks", True)
+                else "Continuous-driving preview: breaks and rest are excluded. Do not use these arrival estimates as a driver schedule.",
                 "Risk miles estimate conditions between checkpoints using the worse endpoint. Forecast grid cells are samples, not radar.",
             ],
         }
+    except PlanningLimitError:
+        raise
     except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError) as exc:
         raise ProviderError(
             "A provider returned an unexpected response. Please retry; no recommendation was made."

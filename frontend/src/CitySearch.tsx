@@ -1,8 +1,8 @@
-import { useId, useRef, useState } from 'react';
+import { memo, useId, useRef, useState } from 'react';
 import { MapPin, Search } from 'lucide-react';
 import { placesSchema, responseBody, type Place } from './contracts';
 
-export function CitySearch({
+function CitySearchComponent({
   label,
   value,
   onChange,
@@ -145,3 +145,5 @@ export function CitySearch({
     </div>
   );
 }
+
+export const CitySearch = memo(CitySearchComponent);

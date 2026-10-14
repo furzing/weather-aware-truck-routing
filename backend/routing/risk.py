@@ -79,7 +79,7 @@ def explain_recommendation(routes):
     winner = eligible[0]
     prefix = f"{winner['name']} is recommended. "
     if len(eligible) == 1:
-        return prefix + "It is the only route without No Travel checkpoints."
+        return prefix + "It is the only route without No Travel checkpoints or planned stops."
     runner_up = eligible[1]
     names = ("Severe exposure", "High exposure", "average risk", "driving time")
     for i, name in enumerate(names):

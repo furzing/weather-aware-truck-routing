@@ -2,7 +2,7 @@
 
 React + TypeScript + Django assessment for comparing three road routes using forecast weather, load weight, and driving time. The app checks weather at each checkpoint's estimated arrival, recommends a route using the assessment's priority order, and displays an independent 0–48 hour corridor forecast.
 
-Repository: [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing) (private). [GitHub Actions](https://github.com/furzing/weather-aware-truck-routing/actions) verifies the app and deployment preparation.
+Repository: [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing) (private). [GitHub Actions](https://github.com/furzing/weather-aware-truck-routing/actions) verifies the app and deployment preparation. Railway with Railpack is the selected deployment target; no local Docker is required. See the [deployment guide](docs/deployment.md). No public deployment exists yet.
 
 ## Run locally
 
@@ -45,7 +45,7 @@ Use the map's **Map settings** button for Light, Dark, or Auto appearance. Auto 
 
 Comparing routes shows an animated spinner and indeterminate bar, elapsed seconds, and Cancel planning. Reduced-motion users keep the text and elapsed-time feedback. No percentage or completed provider stage is invented.
 
-Arrival estimates assume continuous driving and exclude breaks/rest. No ELD is connected and driver clocks are not evaluated. Selected routes above eight estimated driving hours prompt a break review; those above eleven prompt rest or driver-change planning under the standard U.S. rules. These cues do not establish violations or legal arrival times, and they do not alter the assessment's weather ranking.
+Arrival estimates include standard U.S. property-carrying breaks/rest by default: 30 minutes before driving beyond 8 cumulative hours and 10 hours off duty before exceeding 11 driving hours per shift. The model assumes fresh shift clocks and sufficient 60/70-hour cycle availability; actual ELD records, loading, inspections, exceptions, traffic, and cross-border rules are not evaluated. Stop coordinates are timing estimates, not verified parking. Driving and total trip durations are shown separately. Weather is assessed at delayed arrivals and throughout stops. No Travel at a sampled stop excludes a route without adding driven risk miles. Playback holds the truck during stops while forecast time advances. Trips exceeding the 48-hour preview after rest are rejected. The optional continuous-driving view excludes stops and is not a driver schedule.
 
 All three routes show arrival-based risk colors and checkpoints. The selected route has a heavier outline. If every route contains No Travel conditions, the app recommends delaying departure. Provider failures never become synthetic weather or an apparently safe route.
 
@@ -69,6 +69,7 @@ npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filenam
 npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/rules-browser-checks.js
 npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/simulation-browser-checks.js
 npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/mobile-location-browser-checks.js
+npx --yes --package @playwright/cli playwright-cli -s=spotter run-code --filename scripts/performance-browser-checks.js
 ```
 
 This check makes a few live local planning requests; its failure and No Travel UI cases are explicitly injected. It also checks keyboard controls, mobile overflow, and a populated-state axe accessibility scan. Screenshots go to ignored `output/playwright/`.
@@ -124,4 +125,4 @@ Provider documentation: [OSRM route API](https://project-osrm.org/docs/v26.5.0/h
 
 ## Hosting and submission
 
-The repository is published under `furzing`; a public application and Loom recording remain pending. [docs/deployment.md](docs/deployment.md) contains the prepared Cloudflare Worker + Container setup, secret configuration, costs/prerequisites, and verification commands. React assets are served at the edge; same-origin `/api/*` requests reach the existing Django container. Local startup still uses Waitress directly and needs no Cloudflare account.
+The repository is published under `furzing`; a public application and Loom recording remain pending. [docs/deployment.md](docs/deployment.md) contains the selected Railway/Railpack setup, secret configuration, costs, and public verification commands. One native Python service serves React and Django from the same origin. The prepared Cloudflare Worker + Container path remains optional. Local startup uses Waitress and needs no hosting account.

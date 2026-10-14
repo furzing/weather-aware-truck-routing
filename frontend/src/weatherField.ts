@@ -36,10 +36,10 @@ export function interpolateWeather(samples: Sample[], x: number, y: number) {
 }
 
 export function fieldLevel(wind: number, rain: number, snow: number, load: number) {
-  let w = [25, 35, 45, 55].filter((t) => wind >= t).length;
+  let w = Number(wind >= 25) + Number(wind >= 35) + Number(wind >= 45) + Number(wind >= 55);
   if (wind >= 45 && load > 30000) w = 4;
   else if (wind >= 35 && load > 40000) w = Math.max(w, 3);
-  const r = rain > 1 ? 4 : [0.1, 0.25, 0.5].filter((t) => rain >= t).length;
-  const s = snow > 3 ? 4 : [0.5, 1, 2].filter((t) => snow >= t).length;
+  const r = rain > 1 ? 4 : Number(rain >= 0.1) + Number(rain >= 0.25) + Number(rain >= 0.5);
+  const s = snow > 3 ? 4 : Number(snow >= 0.5) + Number(snow >= 1) + Number(snow >= 2);
   return Math.max(w, r, s);
 }

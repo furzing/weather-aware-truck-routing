@@ -19,6 +19,19 @@ const checkpoint = z.object({
   weather,
   risk,
 });
+const stop = z.object({
+  kind: z.enum(['break', 'rest']),
+  driving_elapsed_s: z.number(),
+  start_elapsed_s: z.number(),
+  end_elapsed_s: z.number(),
+  duration_s: z.number(),
+  coordinate,
+  mile: z.number(),
+  arrival: z.string(),
+  departure: z.string(),
+  weather,
+  risk,
+});
 const route = z.object({
   id: z.string(),
   name: z.string(),
@@ -28,6 +41,9 @@ const route = z.object({
   segments: z.array(z.object({ coordinates: z.array(coordinate), level })),
   distance_miles: z.number(),
   duration_s: z.number(),
+  total_duration_s: z.number().optional(),
+  stop_duration_s: z.number().optional(),
+  stops: z.array(stop).optional(),
   arrival: z.string(),
   checkpoints: z.array(checkpoint),
   summary: z.object({
@@ -62,6 +78,7 @@ export const planSchema = z.object({
   destination: z.object({ name: z.string(), coordinate }),
   load_lb: z.number(),
   spacing_miles: z.number(),
+  schedule_breaks: z.boolean().optional(),
   sources: z.object({
     routing: z.string(),
     weather: z.string(),
@@ -81,14 +98,15 @@ export function duration(seconds: number) {
   const minutes = Math.round(seconds / 60);
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
+const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+});
 export function dateTime(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'short',
-  }).format(new Date(value));
+  return dateTimeFormatter.format(new Date(value));
 }
 export async function responseBody(response: Response): Promise<unknown> {
   let data: unknown;

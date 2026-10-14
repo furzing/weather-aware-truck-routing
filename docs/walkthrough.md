@@ -1,21 +1,111 @@
-# 7-minute walkthrough outline
+# Seven-minute assessment walkthrough
 
-Record yourself explaining the running application and code. Replace the local URL with the hosted URL before submission. This is an outline, not a completed Loom recording.
+This script follows `E:/spotter/fs-assessment-spotter.md`. Its stated evaluation weights are 40% routes/weather/risk/recommendation, 35% UI/map/heatmap smoothness and performance, 10% code quality, and 5% documentation/walkthrough. They total 90%; the file does not specify the remaining 10%. The required Loom is 5–10 minutes. It explicitly prioritizes correctness and clarity over extra features.
 
-**0:00–0:45 — Task and scope.** “This helps a driver or dispatcher compare three routes by the supplied weather and load policy. Weather is sampled at arrival, not just departure.” Point out the visible truck-navigation limitation and the labelled timezone.
+Rehearse with a timer. The narration leaves space for screen actions; pause to let the reviewer read the relevant value. Target 6:50–7:00. Do not fill time with installation, long scrolling, or optional settings.
 
-**0:45–2:00 — Plan a trip.** Use Chicago → Detroit, departure about one hour ahead, 38,000 lb, 25-mile spacing. Search for a city and select its state/country result. Compare. Explain the three genuine road routes, the labelled corridor waypoint if present, driving time, distance, and recommendation.
+## Prepare
 
-**2:00–3:00 — Inspect the evidence.** Show that the header ends at the sidebar and the map stays unobstructed. Select another route, open Checkpoints in the bottom strip, and click a checkpoint to locate it. Open a risk explanation. Use Fit routes and close the drawer. Explain that road-segment timings, not constant route speed, determine arrivals.
+- Open the app, `backend/routing/risk.py`, the scenario report, README, and the passing GitHub Actions run in separate tabs. Keep code and browser text readable; close private tabs and credentials.
+- Use Chicago → Detroit, departure about one hour ahead, 38,000 lb, and 25-mile checkpoints. Select unambiguous city results. Have a successful comparison ready and check provider availability before recording.
+- Run `.\.venv\Scripts\python scripts\evaluate_scenarios.py` beforehand; open `output/scenario-evaluation.json`. These are synthetic policy checks. Do not present them as live storm measurements.
+- Prepare a phone-sized browser viewport around 390×844 for a short responsive demonstration.
+- The app is currently local and Railway deployment is prepared. Record the final submission against the hosted URL after deployment and public smoke checks. Ensure reviewers can access the private repository. A guide is not evidence of a completed recording or public deployment.
 
-**3:00–3:45 — Forecast corridor.** Open Weather, move the slider, and show the retrieval timestamp. Press Simulate drive, pause, and seek along the route. The truck uses road-segment timings; the field and estimated conditions follow the simulated time. Explain that this is a continuous-driving preview without breaks, live traffic, or GPS. Road risk remains tied to checkpoint ETAs and playback uses preloaded data. Do not claim severe weather if today's forecast is Low. On a phone-sized viewport, show the controls and drag checkpoints down to restore map space.
+## 0:00–0:25 — Explain the workflow
 
-**3:45–5:00 — Policy correctness.** Open `backend/routing/risk.py` and the relevant test cases. Explain 45 mph + 30,001 lb → No Travel, but 30,000 lb → Severe; 35 mph + 40,001 lb → Severe. Explain that No Travel excludes a route and all blocked routes produce no recommendation. Explain the lexicographic Severe → High → average → time ordering. Show the tests rather than representing synthetic high-wind conditions as a live forecast.
+**Show:** Planner, map, and trip inputs.
 
-**5:00–5:45 — Failure and recovery.** Edit a city without selecting a result, then compare. Show the actionable message and preserved inputs. Explain that upstream missing forecasts produce an error, never zero risk. Restore the trip and compare again. Change checkpoint spacing and explain the sampling tradeoff.
+**Say:**
 
-**5:45–6:30 — Architecture and tests.** Show React/TypeScript, Django, domain policy, provider adapter, and lockfiles. Run the scenario evaluation and show the 12 scenarios, 500 combinations, three detected deliberate mistakes, and narrow-hazard sampling limit. Show the recorded provider replay with HTTP disabled. Distinguish independent policy checks from replay regression evidence and real-world safety outcomes.
+> This is a weather-aware route comparison tool for a driver or dispatcher. It compares three road routes using departure time, load weight, and the weather expected when the truck reaches each checkpoint. I'll show the workflow, explain the recommendation, and show the evidence behind the calculations.
 
-**6:30–7:00 — Decisions and next steps.** Mention car-profile routing, estimated between-checkpoint risk, forecast uncertainty, and provider service limits. Explain the single-origin deployment and health endpoint. A production trucking workflow would need truck-capable routing, operational advisories, and realistic duty/rest times.
+## 0:25–1:25 — Generate three routes
 
-Simple explanation: “We compare the weather the truck is expected to encounter along each road route. We rule out No Travel conditions, reduce severe exposure first, and use driving time to break the remaining ties.”
+**Show:** Origin and destination, labelled departure timezone, load, and the 10/25/50-mile spacing choices. Keep 25 selected and press Compare. Show the three route summaries and deciding recommendation criterion.
+
+**Say:**
+
+> These inputs match the assessment: origin, destination, departure, and load. Checkpoint spacing can be ten, twenty-five, or fifty miles. OSRM provides road routes, and Open-Meteo provides hourly weather forecasts. The backend uses road-segment travel times to estimate arrival at each checkpoint, then evaluates weather at that arrival time, rather than applying departure weather to the entire trip.
+>
+> Each option shows distance, driving time, and risk exposure. The recommendation explains which criterion decided the comparison.
+
+If every route is Low, add: “Here, the weather criteria tie, so driving time decides.” Do not claim the current example demonstrates storm avoidance. If a corridor waypoint is labelled, identify it as a real road route requested via that waypoint.
+
+## 1:25–2:15 — Inspect the map and checkpoints
+
+**Show:** Select a different route. Open Checkpoints, click one to locate it on the map, and open its risk explanation. Resize the drawer, close it, and use Fit routes. Let the map settle.
+
+**Say:**
+
+> All three routes remain visible, and selecting one emphasizes it. Checkpoints expose arrival time, wind, rain, snow, and the resulting risk, so the user can inspect the evidence behind the summary.
+>
+> The drawer opens on demand and can be resized or dismissed. During dragging, it follows the pointer while the map keeps its size; releasing commits the new map space once. This avoids resizing the map and redrawing its weather field for every pointer movement.
+
+## 2:15–3:05 — Demonstrate the heatmap and time
+
+**Show:** Open Weather; move from departure to +24 and +48 hours. Point to the legend and retrieval time. Start Simulate drive, pause, seek, then close playback.
+
+**Say:**
+
+> The corridor heatmap covers departure through the next forty-eight hours. The slider updates preloaded data without making another forecast request. It changes the time being inspected; checkpoint risk and the recommendation remain tied to the planned arrival times.
+>
+> Playback moves the truck along road geometry using segment timings, while forecast time advances with it. The preview includes planned U.S. breaks and rest, holding the truck while forecast time advances. Actual duty records, traffic, and parking availability are not evaluated. The smooth field interpolates forecast samples; it doesn't increase the weather model's resolution. Forecasts are cached for ten minutes, and an open trip doesn't automatically refresh.
+
+## 3:05–3:40 — Show mobile behavior
+
+**Show:** Switch to the prepared mobile viewport. Open Routes and select one so the sheet closes. Open and dismiss Weather. Open Checkpoints and drag it down. Restore desktop size.
+
+**Say:**
+
+> On mobile, the main controls move to a bottom dock with safe-area spacing. Routes and Weather use bounded sheets, and selecting a route dismisses the sheet. Checkpoints can be dragged down to restore map space. This demonstrates the responsive browser layout; physical phone toolbar and GPS behavior still need verification on the public deployment.
+
+## 3:40–4:35 — Explain the exact risk policy
+
+**Show:** Rules: threshold table and recommendation order. Point to the load rules. Keep ELD/HOS discussion brief.
+
+**Say:**
+
+> The worst category across wind, rain, and snow determines checkpoint risk. Load adds the specified wind restrictions. At forty-five miles per hour, a thirty-thousand-pound load remains Severe, while thirty-thousand-and-one becomes No Travel. Wind at or above fifty-five means No Travel for every load.
+>
+> No Travel excludes a route. Eligible routes are ordered by Severe miles, High miles, distance-weighted average risk, then driving time. If all routes are excluded, the app gives no recommendation.
+>
+> Between checkpoints, the worse endpoint estimates interval risk mileage. This remains sampled evidence: a narrow hazard can fall between checkpoints. Rules also explains HOS considerations, but no ELD is connected and no driver's available duty hours are evaluated.
+
+## 4:35–5:30 — Show verification and recovery
+
+**Show:** Passing CI and the prepared scenario report. Point to `severe_before_time`, `load_exact_30000`, and `all_blocked_different_causes`, then the detected mutations. Briefly return to the app, edit a city without selecting a result, press Compare, and show its validation message. Select the result to correct it; a second full comparison is unnecessary.
+
+**Say:**
+
+> Verification includes backend, frontend, and Worker tests, including break boundaries and weather during rest. Separate evaluation checks twelve manually specified scenarios and five hundred weather-and-load combinations. It also catches three deliberately introduced mistakes, including putting time before weather and mishandling load boundaries.
+>
+> Invalid locations produce an actionable correction while preserving inputs. Missing upstream weather produces an explicit error, never an apparently safe fallback. Recorded provider responses can be replayed with HTTP disabled to detect integration regressions. These checks establish implementation behavior, not forecast accuracy or real-world safety outcomes.
+
+## 5:30–6:20 — Show code quality
+
+**Show:** Repository structure, then the short `classify`, `priority`, and `recommendation` functions in `backend/routing/risk.py`. Briefly point to `geometry.py`, `providers.py`, and `service.py` in the tree. Show CI's build/container smoke steps rather than scrolling logs.
+
+**Say:**
+
+> React and TypeScript handle map interaction; Django owns provider validation, checkpoint timing, risk calculation, and ranking. The policy is separate from geometry and provider adapters, making those boundaries easier to test. Input and provider errors are explicit.
+>
+> Recommendations are deterministic: there is no trained model or LLM. The supplied policy is implemented directly so decisions are auditable. CI checks tests, formatting, types, and builds, and also builds the deployment container and smoke-tests its HTTP and static delivery.
+
+## 6:20–7:00 — Finish with a reproducible handoff
+
+**Show:** README setup and verification commands, documented limitations, and actual hosted URL after deployment.
+
+**Say:**
+
+> The README provides setup, verification, architecture, and deployment instructions. The main limits are car-profile routing, forecast uncertainty, and assumed fresh duty clocks and estimated stop locations. Before operational trucking use, the priorities are truck-capable routing, integration with actual duty records and parking data, and evaluation against observed weather and real trip traces.
+>
+> The result is an inspectable route comparison: the user can see the forecast, the rule it triggered, and why one route ranks ahead of another.
+
+## Recording guardrails
+
+- GPS and night mode are secondary; omit their tours unless the core demonstration finishes early.
+- Say “hourly forecast,” “lower risk under the supplied policy,” and “ELD/HOS guidance.” Avoid “real-time roadside weather,” “guaranteed safest,” “trained AI prediction,” or “ELD compliant.”
+- Label captured responses, synthetic storms, and emulated GPS if shown. Do not induce a live provider outage or wait for an entire test suite during the recording.
+- Browser interaction checks passed, but no physical-device frame-rate benchmark was performed. Demonstrate smoothness; do not invent performance scores or claim testing on every phone.
+- Only call Railway live after deployment and public verification. A private repository also needs reviewer access before submission.

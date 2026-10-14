@@ -307,6 +307,8 @@ select:disabled {
 }
 .spinner {
   transform-origin: center;
+  transform-box: fill-box;
+  will-change: transform;
   animation: rotate 0.7s linear infinite;
 }
 @keyframes rotate {
@@ -1028,6 +1030,7 @@ select:disabled {
 .weather-field {
   position: absolute;
   pointer-events: none;
+  image-rendering: auto;
 }
 .planner-navigation {
   display: flex;
@@ -1755,10 +1758,17 @@ main.rules-main {
     scroll-padding-bottom: 64px;
   }
   .editing-panel .primary-button {
+    position: static;
+    box-shadow: none;
+  }
+  .editing-panel .planning-actions {
     position: sticky;
-    bottom: 12px;
+    bottom: 0;
     z-index: 6;
-    box-shadow: 0 0 0 8px var(--surface);
+    margin-inline: -12px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
   }
   .app-shell main:has(.mobile-open .results-panel) .workspace {
     padding-bottom: 36dvh;
@@ -1826,4 +1836,79 @@ main.rules-main {
   .map-tools:has(.map-settings:not([hidden])) .location-status {
     display: none;
   }
+}
+.planning-actions .planning-progress {
+  margin: 0 0 10px;
+}
+.planning-actions .cancel-button {
+  min-height: 44px;
+  padding: 8px 0;
+}
+.schedule-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  min-height: 44px;
+}
+.schedule-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--accent);
+}
+.schedule-assumption {
+  display: block;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.planned-stops {
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.planned-stops summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+.planned-stops ol {
+  padding-left: 20px;
+}
+.planned-stops li {
+  margin-bottom: 12px;
+}
+.planned-stops li > span {
+  display: block;
+  margin-top: 4px;
+}
+.planned-stops p {
+  color: var(--muted);
+}
+.simulation-stop {
+  color: var(--accent);
+}
+.stop-marker {
+  background: var(--surface);
+  color: var(--accent);
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+}
+.weather-error {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 450;
+  padding: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-size: 13px;
 }

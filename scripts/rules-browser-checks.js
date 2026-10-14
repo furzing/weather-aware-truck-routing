@@ -2,6 +2,8 @@ async (page) => {
   // Playwright CLI regression check. Duration cases are explicitly injected UI fixtures.
   const check = (condition, message) => { if (!condition) throw new Error(message); };
   const errors = [];
+  const capturedPlan = null;
+  if (capturedPlan) await page.context().route('**/api/plan', request=>request.fulfill({json:capturedPlan}));
   const base = page.url().startsWith('http://127.0.0.1:8000') ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:5173';
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1365, height: 679 });
@@ -57,7 +59,7 @@ async (page) => {
   check(map.y === 0 && map.height >= 620, 'Rules navigation must preserve the full map layout');
   await page.screenshot({ path: 'output/playwright/rules-planner-return.png' });
 
-  let baseline;
+  let baseline = capturedPlan;
   for (const seconds of [8 * 3600, 8 * 3600 + 1, 11 * 3600, 11 * 3600 + 1]) {
     await page.route('**/api/plan', async request => {
       if (!baseline) {
@@ -66,11 +68,15 @@ async (page) => {
         baseline = await upstream.json();
       }
       const data = structuredClone(baseline);
+      data.schedule_breaks = false; // This fixture specifically checks continuous-driving cues.
       data.recommended_id = data.routes[0].id;
       data.recommendation_reason = 'Injected duration fixture; not a live schedule.';
       for (const route of data.routes) {
         const factor = seconds / route.duration_s;
         route.duration_s = route.summary.duration_s = seconds;
+        route.total_duration_s = seconds;
+        route.stop_duration_s = 0;
+        route.stops = [];
         route.arrival = new Date(Date.parse(data.departure) + seconds * 1000).toISOString();
         for (const checkpoint of route.checkpoints) {
           checkpoint.elapsed_s *= factor;
@@ -95,5 +101,5 @@ async (page) => {
   check(await page.getByRole('heading', { name: 'Rules', exact: true }).count() === 1, 'Refreshing a deep link must work');
   await page.screenshot({ path: 'output/playwright/rules-desktop.png' });
   check(errors.length === 0, `JavaScript errors: ${errors.join('; ')}`);
-  return { passed: true, base, deepLinks: true, historyAndTripPreservation: true, contextualHOSLink: true, mobileWidths: [390, 320], durationBoundaryFixtures: 4, desktopAxeViolations: desktopAxe.violations.length, javascriptErrors: errors, mapHeight: map.height };
+  return { passed: true, source: capturedPlan ? "captured/labelled fixture" : "live providers", base, deepLinks: true, historyAndTripPreservation: true, contextualHOSLink: true, mobileWidths: [390, 320], durationBoundaryFixtures: 4, desktopAxeViolations: desktopAxe.violations.length, javascriptErrors: errors, mapHeight: map.height };
 }

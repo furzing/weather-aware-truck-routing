@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
@@ -21,7 +21,7 @@ import { RouteMap } from './RouteMap';
 import { Rules } from './Rules';
 import { CheckpointDrawer } from './CheckpointDrawer';
 import { SimulationControls } from './SimulationControls';
-import { hasTiming, initialSimulation, positionAt } from './simulation';
+import { hasTiming, initialSimulation, positionAt, journeyDuration } from './simulation';
 import { useAppearance } from './useAppearance';
 import { useLocation } from './useLocation';
 import { MapTools } from './MapTools';
@@ -42,6 +42,7 @@ function initialDeparture() {
   date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
+const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 function RiskBadge({ level }: { level: number }) {
   return <span className={`risk-badge risk-${level}`}>{labels[level]}</span>;
 }
@@ -99,6 +100,7 @@ export default function App() {
   const [departure, setDeparture] = useState(initialDeparture);
   const [weight, setWeight] = useState('38000');
   const [spacing, setSpacing] = useState(25);
+  const [scheduleBreaks, setScheduleBreaks] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -113,11 +115,18 @@ export default function App() {
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const controller = useRef<AbortController | null>(null);
   const route = plan?.routes.find((r) => r.id === selectedId);
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const currentInputs = JSON.stringify({ origin, destination, departure, weight, spacing });
+  const timezone = deviceTimezone;
+  const currentInputs = JSON.stringify({
+    origin,
+    destination,
+    departure,
+    weight,
+    spacing,
+    scheduleBreaks,
+  });
   const [plannedInputs, setPlannedInputs] = useState('');
   const dirty = !!plan && currentInputs !== plannedInputs;
-  const driveDuration = route?.duration_s ?? 0;
+  const driveDuration = route ? journeyDuration(route) : 0;
   const fieldHour = simulation.visible ? simulation.elapsed / 3600 : hour;
   const driverPosition = simulation.visible && route ? positionAt(route, simulation.elapsed) : null;
   useEffect(() => {
@@ -160,7 +169,7 @@ export default function App() {
     );
   }
 
-  function selectRoute(id: string) {
+  const selectRoute = useCallback((id: string) => {
     setSelectedId(id);
     setFocusIndex(null);
     setSimulation((current) => ({ ...current, playing: false, elapsed: 0 }));
@@ -170,7 +179,7 @@ export default function App() {
         document.querySelector<HTMLButtonElement>('.mobile-routes')?.focus(),
       );
     }
-  }
+  }, []);
   function openMobileView(view: 'routes' | 'weather') {
     setSidebarView(view);
     setEditingTrip(false);
@@ -237,6 +246,7 @@ export default function App() {
           departure: new Date(departure).toISOString(),
           load_lb: Number(weight),
           spacing_miles: spacing,
+          schedule_breaks: scheduleBreaks,
         }),
       });
       const parsed = planSchema.safeParse(await responseBody(response));
@@ -267,6 +277,100 @@ export default function App() {
       setBusy(false);
     }
   }
+
+  // These lists do not change when the forecast clock or simulation advances.
+  const routeOptions = useMemo(
+    () =>
+      plan?.routes.map((r, i) => (
+        <button
+          type="button"
+          className={`route-option ${selectedId === r.id ? 'selected' : ''}`}
+          key={r.id}
+          aria-pressed={selectedId === r.id}
+          onClick={() => selectRoute(r.id)}
+        >
+          <div className="route-option-title">
+            <span className="route-number">{i + 1}</span>
+            <strong>{r.name}</strong>
+            {r.id === plan.recommended_id && (
+              <span className="recommended">
+                <Check size={13} aria-hidden="true" /> Recommended
+              </span>
+            )}
+          </div>
+          <div className="route-stats">
+            <span>{duration(journeyDuration(r))} trip</span>
+            <span>{Math.round(r.distance_miles)} mi</span>
+            <RiskBadge level={r.summary.max_risk} />
+          </div>
+          <div className="route-risk-summary">
+            {duration(r.duration_s)} driving · {duration(r.stop_duration_s ?? 0)} stops
+          </div>
+          <div className="risk-bar" aria-label={`Risk miles for ${r.name}`}>
+            {labels.map((label, n) => (
+              <span
+                key={label}
+                style={{
+                  width: `${(r.summary.risk_miles[label] / r.distance_miles) * 100}%`,
+                  backgroundColor: colors[n],
+                }}
+                title={`${label}: ${r.summary.risk_miles[label].toFixed(1)} mi`}
+              />
+            ))}
+          </div>
+          <div className="route-risk-summary">
+            {!r.summary.eligible
+              ? `${r.summary.risk_miles['No Travel'].toFixed(1)} mi No Travel${r.stops?.some((s) => s.risk.level === 4) ? ' · stop affected' : ''} · excluded`
+              : `${r.summary.risk_miles.Severe.toFixed(1)} mi Severe · ${r.summary.risk_miles.High.toFixed(1)} mi High`}
+            <br />
+            Average risk {r.summary.average_risk.toFixed(2)} / 4
+          </div>
+          {r.via_note.startsWith('Via') && (
+            <span className="via-note">Includes a corridor waypoint</span>
+          )}
+        </button>
+      )),
+    [plan, selectedId, selectRoute],
+  );
+  const checkpointRows = useMemo(() => {
+    if (!route) return null;
+    return route.checkpoints.map((p, i) => (
+      <tr key={i} className={focusIndex === i ? 'focused-row' : ''}>
+        <td>
+          <button
+            type="button"
+            className="checkpoint-link"
+            onClick={() => setFocusIndex(i)}
+            aria-label={`Show checkpoint ${i + 1} at mile ${Math.round(p.mile)} on map`}
+          >
+            {i === 0
+              ? 'Origin'
+              : i === route.checkpoints.length - 1
+                ? 'Destination'
+                : `Mile ${Math.round(p.mile)}`}
+            <ArrowRight size={13} aria-hidden="true" />
+          </button>
+        </td>
+        <td data-label="ETA">{dateTime(p.eta)}</td>
+        <td data-label="Wind">{p.weather.wind_mph.toFixed(1)} mph</td>
+        <td data-label="Rain">{p.weather.rain_in.toFixed(2)} in/hr</td>
+        <td data-label="Snow">{p.weather.snow_in.toFixed(2)} in/hr</td>
+        <td>
+          <details className="checkpoint-risk">
+            <summary>
+              <RiskBadge level={p.risk.level} />
+            </summary>
+            <p>
+              {p.risk.reasons.length
+                ? p.risk.reasons.join(' ')
+                : 'All conditions below the Moderate thresholds.'}{' '}
+              Forecast hour: {dateTime(p.weather.forecast_time)}.
+            </p>
+          </details>
+        </td>
+      </tr>
+    ));
+  }, [route, focusIndex]);
 
   if (page === 'rules') return <Rules onNavigate={navigate} />;
 
@@ -389,7 +493,32 @@ export default function App() {
                         </select>
                       </div>
                     </div>
-                    <button type="submit" className="primary-button">
+                    <label className="schedule-option">
+                      <input
+                        type="checkbox"
+                        checked={scheduleBreaks}
+                        onChange={(e) => setScheduleBreaks(e.target.checked)}
+                      />
+                      <span>Include standard U.S. breaks & rest</span>
+                    </label>
+                    <p className="field-message schedule-assumption">
+                      30 min after 8h driving; 10h rest after 11h. Assumes fresh shift and
+                      sufficient cycle hours. No ELD connected.
+                    </p>
+                  </fieldset>
+                  {error && (
+                    <div role="alert" className="error-message">
+                      {error}
+                    </div>
+                  )}
+                  {dirty && (
+                    <p className="changed-message" role="status">
+                      Trip inputs changed. Compare again to update the results.
+                    </p>
+                  )}
+                  <div className="planning-actions">
+                    {busy && <PlanningProgress />}
+                    <button type="submit" className="primary-button" disabled={busy}>
                       {busy ? (
                         <>
                           <LoaderCircle className="spinner" size={18} aria-hidden="true" /> Checking
@@ -401,27 +530,16 @@ export default function App() {
                         </>
                       )}
                     </button>
-                  </fieldset>
-                  {busy && <PlanningProgress />}
-                  {busy && (
-                    <button
-                      type="button"
-                      className="text-button cancel-button"
-                      onClick={() => controller.current?.abort()}
-                    >
-                      Cancel planning
-                    </button>
-                  )}
-                  {error && (
-                    <div role="alert" className="error-message">
-                      {error}
-                    </div>
-                  )}
-                  {dirty && (
-                    <p className="changed-message" role="status">
-                      Trip inputs changed. Compare again to update the results.
-                    </p>
-                  )}
+                    {busy && (
+                      <button
+                        type="button"
+                        className="text-button cancel-button"
+                        onClick={() => controller.current?.abort()}
+                      >
+                        Cancel planning
+                      </button>
+                    )}
+                  </div>
                   <span className="sr-only" role="status">
                     {busy
                       ? 'Checking three routes and weather at each arrival time.'
@@ -486,62 +604,41 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  <div className="route-options">
-                    {plan.routes.map((r, i) => (
-                      <button
-                        type="button"
-                        className={`route-option ${selectedId === r.id ? 'selected' : ''}`}
-                        key={r.id}
-                        aria-pressed={selectedId === r.id}
-                        onClick={() => selectRoute(r.id)}
-                      >
-                        <div className="route-option-title">
-                          <span className="route-number">{i + 1}</span>
-                          <strong>{r.name}</strong>
-                          {r.id === plan.recommended_id && (
-                            <span className="recommended">
-                              <Check size={13} aria-hidden="true" /> Recommended
+                  <div className="route-options">{routeOptions}</div>
+                  {!!route?.stops?.length && (
+                    <details className="planned-stops">
+                      <summary>Planned stops / {route.stops.length}</summary>
+                      <ol>
+                        {route.stops.map((stop, i) => (
+                          <li key={i}>
+                            <strong>
+                              {stop.kind === 'rest' ? '10-hour rest' : '30-minute break'} · mile{' '}
+                              {Math.round(stop.mile)}
+                            </strong>
+                            <span>
+                              {dateTime(stop.arrival)} → {dateTime(stop.departure)}
                             </span>
-                          )}
-                        </div>
-                        <div className="route-stats">
-                          <span>{duration(r.duration_s)} driving</span>
-                          <span>{Math.round(r.distance_miles)} mi</span>
-                          <RiskBadge level={r.summary.max_risk} />
-                        </div>
-                        <div className="risk-bar" aria-label={`Risk miles for ${r.name}`}>
-                          {labels.map((label, n) => (
-                            <span
-                              key={label}
-                              style={{
-                                width: `${(r.summary.risk_miles[label] / r.distance_miles) * 100}%`,
-                                backgroundColor: colors[n],
-                              }}
-                              title={`${label}: ${r.summary.risk_miles[label].toFixed(1)} mi`}
-                            />
-                          ))}
-                        </div>
-                        <div className="route-risk-summary">
-                          {r.summary.risk_miles['No Travel'] > 0
-                            ? `${r.summary.risk_miles['No Travel'].toFixed(1)} mi No Travel · excluded`
-                            : `${r.summary.risk_miles.Severe.toFixed(1)} mi Severe · ${r.summary.risk_miles.High.toFixed(1)} mi High`}
-                          <br />
-                          Average risk {r.summary.average_risk.toFixed(2)} / 4
-                        </div>
-                        {r.via_note.startsWith('Via') && (
-                          <span className="via-note">Includes a corridor waypoint</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                            <span>
+                              Worst sampled stop weather: <RiskBadge level={stop.risk.level} />
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                      <p>
+                        Timing estimates on the road; no truck-parking locations have been verified.
+                      </p>
+                    </details>
+                  )}
                   <p className="recommendation-explanation">{plan.recommendation_reason}</p>
                   <p className="driving-note">
-                    Arrival estimates exclude breaks and rest. Driver clocks are not checked.{' '}
+                    {plan.schedule_breaks
+                      ? 'Arrivals include planned U.S. breaks and rest, assuming fresh duty clocks. Stop locations are estimates; verify parking and actual ELD records.'
+                      : 'Arrival estimates exclude breaks and rest. Driver clocks are not checked.'}{' '}
                     <a href="/rules#hos" onClick={navigate}>
                       ELD & hours of service
                     </a>
                   </p>
-                  {route && route.duration_s > 8 * 3600 && (
+                  {route && !plan.schedule_breaks && route.duration_s > 8 * 3600 && (
                     <p className="driving-note" aria-live="polite">
                       {route.duration_s > 11 * 3600
                         ? 'This route exceeds the standard U.S. 11-hour driving allowance for one driver. Schedule qualifying rest or a driver change before using these arrival times.'
@@ -698,7 +795,7 @@ export default function App() {
           <div className="map-toolbar">
             <span>
               {route
-                ? `${route.name} · ${duration(route.duration_s)} · ${Math.round(route.distance_miles)} mi`
+                ? `${route.name} · ${duration(journeyDuration(route))} trip · ${Math.round(route.distance_miles)} mi`
                 : 'Compare a trip to see routes and weather'}
             </span>
             <div>
@@ -745,7 +842,7 @@ export default function App() {
                 </h2>
                 <p>
                   {route
-                    ? `Arrival excludes breaks and rest · every ${plan?.spacing_miles} miles · times in ${timezone}`
+                    ? `${plan?.schedule_breaks ? 'Arrival includes planned breaks & rest' : 'Arrival excludes breaks and rest'} · every ${plan?.spacing_miles} miles · times in ${timezone}`
                     : 'Arrival times and weather appear here after comparing routes.'}
                 </p>
               </div>
@@ -778,44 +875,7 @@ export default function App() {
                       <th scope="col">Risk</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {route.checkpoints.map((p, i) => (
-                      <tr key={i} className={focusIndex === i ? 'focused-row' : ''}>
-                        <td>
-                          <button
-                            type="button"
-                            className="checkpoint-link"
-                            onClick={() => setFocusIndex(i)}
-                            aria-label={`Show checkpoint ${i + 1} at mile ${Math.round(p.mile)} on map`}
-                          >
-                            {i === 0
-                              ? 'Origin'
-                              : i === route.checkpoints.length - 1
-                                ? 'Destination'
-                                : `Mile ${Math.round(p.mile)}`}
-                            <ArrowRight size={13} aria-hidden="true" />
-                          </button>
-                        </td>
-                        <td data-label="ETA">{dateTime(p.eta)}</td>
-                        <td data-label="Wind">{p.weather.wind_mph.toFixed(1)} mph</td>
-                        <td data-label="Rain">{p.weather.rain_in.toFixed(2)} in/hr</td>
-                        <td data-label="Snow">{p.weather.snow_in.toFixed(2)} in/hr</td>
-                        <td>
-                          <details className="checkpoint-risk">
-                            <summary>
-                              <RiskBadge level={p.risk.level} />
-                            </summary>
-                            <p>
-                              {p.risk.reasons.length
-                                ? p.risk.reasons.join(' ')
-                                : 'All conditions below the Moderate thresholds.'}{' '}
-                              Forecast hour: {dateTime(p.weather.forecast_time)}.
-                            </p>
-                          </details>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  <tbody>{checkpointRows}</tbody>
                 </table>
               </div>
             ) : (

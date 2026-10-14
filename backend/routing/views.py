@@ -13,6 +13,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .geometry import distance
 from .providers import ProviderError, Providers
+from .schedule import PlanningLimitError
 from .service import build_plan
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,9 @@ def validate(payload):
     spacing = payload.get("spacing_miles")
     if type(spacing) is not int or spacing not in (10, 25, 50):
         raise ValueError("Checkpoint spacing must be 10, 25, or 50 miles.")
+    schedule_breaks = payload.get("schedule_breaks", True)
+    if type(schedule_breaks) is not bool:
+        raise ValueError("The break schedule option must be true or false.")
     try:
         departure = datetime.fromisoformat(payload["departure"].replace("Z", "+00:00"))
     except (KeyError, AttributeError, TypeError, ValueError) as exc:
@@ -63,7 +67,10 @@ def validate(payload):
     if departure < now - timedelta(minutes=5) or departure > now + timedelta(days=3):
         raise ValueError("Choose a departure from now through the next 72 hours.")
     result.update(
-        load_lb=weight, spacing_miles=spacing, departure=departure.astimezone(timezone.utc)
+        load_lb=weight,
+        spacing_miles=spacing,
+        departure=departure.astimezone(timezone.utc),
+        schedule_breaks=schedule_breaks,
     )
     return result
 
@@ -130,6 +137,8 @@ def plan(request):
         response = JsonResponse(build_plan(data))
         response["Cache-Control"] = "no-store"
         return response
+    except PlanningLimitError as exc:
+        return error(str(exc), "unsupported_trip", 400)
     except ProviderError as exc:
         logger.warning("Planning failed: %s", exc)
         return error(str(exc), "provider_unavailable", 502)

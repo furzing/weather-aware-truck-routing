@@ -32,6 +32,16 @@ jobs:
       - run: npm --prefix cloudflare run check
       - run: npm --prefix cloudflare run dry-run
       - run: python backend/manage.py collectstatic --noinput
+      - name: Verify the native Railway build and start commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build.sh
+          PORT=8001 python scripts/serve.py &
+          native_pid=$!
+          trap 'kill "$native_pid"' EXIT
+          python scripts/wait_for_server.py http://127.0.0.1:8001/api/health
+          python scripts/production_smoke.py http://127.0.0.1:8001
       - name: Build and smoke-test the deployment image
         shell: bash
         run: |
