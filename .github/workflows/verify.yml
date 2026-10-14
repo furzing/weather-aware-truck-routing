@@ -23,6 +23,7 @@ jobs:
       - run: npm --prefix cloudflare ci
       - run: ruff check backend scripts
       - run: ruff format --check backend scripts
+      - run: python backend/manage.py makemigrations --check --dry-run
       - run: python backend/manage.py test routing -v 2
       - run: python scripts/evaluate_scenarios.py
       - run: npm --prefix frontend run lint

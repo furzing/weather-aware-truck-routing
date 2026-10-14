@@ -30,7 +30,7 @@ Rehearse with a timer. The narration leaves space for screen actions; pause to l
 >
 > Each option shows distance, driving time, and risk exposure. The recommendation explains which criterion decided the comparison.
 
-If every route is Low, add: “Here, the weather criteria tie, so driving time decides.” Do not claim the current example demonstrates storm avoidance. If a corridor waypoint is labelled, identify it as a real road route requested via that waypoint.
+If every route is Low, add: “Here, the weather criteria tie, so total scheduled travel time decides.” Do not claim the current example demonstrates storm avoidance. If a corridor waypoint is labelled, identify it as a real road route requested via that waypoint.
 
 ## 1:25–2:15 — Inspect the map and checkpoints
 
@@ -68,7 +68,7 @@ If every route is Low, add: “Here, the weather criteria tie, so driving time d
 
 > The worst category across wind, rain, and snow determines checkpoint risk. Load adds the specified wind restrictions. At forty-five miles per hour, a thirty-thousand-pound load remains Severe, while thirty-thousand-and-one becomes No Travel. Wind at or above fifty-five means No Travel for every load.
 >
-> No Travel excludes a route. Eligible routes are ordered by Severe miles, High miles, distance-weighted average risk, then driving time. If all routes are excluded, the app gives no recommendation.
+> No Travel excludes a route. Eligible routes are ordered by Severe miles, High miles, distance-weighted average risk, then total scheduled travel time. If all routes are excluded, the app gives no recommendation.
 >
 > Between checkpoints, the worse endpoint estimates interval risk mileage. This remains sampled evidence: a narrow hazard can fall between checkpoints. Rules also explains HOS considerations, but no ELD is connected and no driver's available duty hours are evaluated.
 

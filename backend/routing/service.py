@@ -67,7 +67,9 @@ def build_plan(data):
                     risk=worst["risk"],
                     weather_samples=assessed,
                 )
-            summary = summarize(points, raw["duration"])
+            stop_duration = sum(s["duration_s"] for s in stops)
+            total_duration = raw["duration"] + stop_duration
+            summary = summarize(points, total_duration)
             if stops:
                 summary["max_risk"] = max(summary["max_risk"], *(s["risk"]["level"] for s in stops))
                 summary["eligible"] = summary["eligible"] and all(
@@ -98,8 +100,8 @@ def build_plan(data):
                     "segments": segments,
                     "distance_miles": raw["distance"] / 1609.344,
                     "duration_s": raw["duration"],
-                    "stop_duration_s": sum(s["duration_s"] for s in stops),
-                    "total_duration_s": raw["duration"] + sum(s["duration_s"] for s in stops),
+                    "stop_duration_s": stop_duration,
+                    "total_duration_s": total_duration,
                     "stops": stops,
                     "arrival": points[-1]["eta"],
                     "checkpoints": points,

@@ -6,9 +6,7 @@ import {
   Clock3,
   ClipboardList,
   CloudSun,
-  Layers,
   LoaderCircle,
-  Play,
   Route as RouteIcon,
   ShieldAlert,
   Truck,
@@ -17,15 +15,16 @@ import {
   X,
 } from 'lucide-react';
 import { CitySearch } from './CitySearch';
-import { RouteMap } from './RouteMap';
+import { ForecastMap, ForecastMapTools, DrivePreview, SimulationLauncher } from './ForecastViews';
+import { ForecastPanel } from './ForecastPanel';
+import { ForecastClock } from './ForecastClock';
+import { useForecastActions } from './forecastContext';
 import { Rules } from './Rules';
 import { CheckpointDrawer } from './CheckpointDrawer';
-import { SimulationControls } from './SimulationControls';
-import { hasTiming, initialSimulation, positionAt, journeyDuration } from './simulation';
+import { hasTiming, journeyDuration } from './simulation';
 import { useAppearance } from './useAppearance';
 import { useMotion } from './useMotion';
 import { useLocation } from './useLocation';
-import { MapTools } from './MapTools';
 import { PlanningProgress } from './PlanningProgress';
 import {
   colors,
@@ -49,22 +48,30 @@ function RiskBadge({ level }: { level: number }) {
 }
 
 export default function App() {
+  return (
+    <ForecastClock>
+      <Planner />
+    </ForecastClock>
+  );
+}
+
+function Planner() {
+  const clock = useForecastActions();
   const [page, setPage] = useState(() =>
     window.location.pathname.startsWith('/rules') ? 'rules' : 'planner',
   );
-  const [simulation, setSimulation] = useState(initialSimulation);
   const { appearance, setAppearance } = useAppearance();
   const { motion, setMotion } = useMotion();
   const location = useLocation(page === 'planner');
   const [locationFocus, setLocationFocus] = useState(0);
   useEffect(() => {
     const onPopState = () => {
-      setSimulation((previous) => ({ ...previous, playing: false }));
+      clock.pause();
       setPage(window.location.pathname.startsWith('/rules') ? 'rules' : 'planner');
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [clock]);
   useEffect(() => {
     document.title = page === 'rules' ? 'Rules | Spotter route planner' : 'Spotter | Route planner';
     const frame = window.requestAnimationFrame(() => {
@@ -85,8 +92,10 @@ export default function App() {
       return;
     event.preventDefault();
     const url = new URL(event.currentTarget.href);
-    window.history.pushState(null, '', url.pathname + url.hash);
-    setSimulation((previous) => ({ ...previous, playing: false }));
+    const tripId = plan?.trip_id ?? restoreId;
+    if (tripId) url.searchParams.set('trip', tripId);
+    window.history.pushState(null, '', url.pathname + url.search + url.hash);
+    clock.pause();
     setPage(url.pathname.startsWith('/rules') ? 'rules' : 'planner');
   }
   const [origin, setOrigin] = useState<Place | null>({
@@ -105,9 +114,10 @@ export default function App() {
   const [scheduleBreaks, setScheduleBreaks] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [selectedId, setSelectedId] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [restoreId] = useState(() => new URLSearchParams(window.location.search).get('trip'));
+  const [busy, setBusy] = useState(!!restoreId);
+  const [restoring, setRestoring] = useState(!!restoreId);
   const [error, setError] = useState('');
-  const [hour, setHour] = useState(0);
   const [heatmap, setHeatmap] = useState(true);
   const [fitRequest, setFitRequest] = useState(0);
   const [editingTrip, setEditingTrip] = useState(true);
@@ -128,35 +138,91 @@ export default function App() {
   });
   const [plannedInputs, setPlannedInputs] = useState('');
   const dirty = !!plan && currentInputs !== plannedInputs;
-  const driveDuration = route ? journeyDuration(route) : 0;
-  const fieldHour = simulation.visible ? simulation.elapsed / 3600 : hour;
-  const driverPosition = simulation.visible && route ? positionAt(route, simulation.elapsed) : null;
   useEffect(() => {
-    if (!simulation.playing || page !== 'planner') return;
-    let frame = 0,
-      previous = performance.now();
-    const tick = (now: number) => {
-      if (now - previous >= 80) {
-        const delta = Math.min(0.25, (now - previous) / 1000) * simulation.rate;
-        previous = now;
-        setSimulation((current) => {
-          if (!current.playing) return current;
-          const elapsed = Math.min(driveDuration, current.elapsed + delta);
-          return { ...current, elapsed, playing: elapsed < driveDuration };
-        });
+    clock.configure(route ? journeyDuration(route) : 0, page === 'planner');
+  }, [clock, route, page]);
+  useEffect(() => {
+    if (!restoreId) return;
+    const request = new AbortController();
+    controller.current = request;
+    const timeout = window.setTimeout(() => request.abort('timeout'), 15000);
+    async function restore() {
+      try {
+        if (
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(restoreId!)
+        )
+          throw new Error('This saved comparison link is invalid. Compare a new trip.');
+        const response = await fetch(`/api/plans/${restoreId}`, { signal: request.signal });
+        const parsed = planSchema.safeParse(await responseBody(response));
+        if (!parsed.success)
+          throw new Error(
+            'The saved comparison contains incomplete route data. Compare a new trip.',
+          );
+        const saved = parsed.data;
+        if (request.signal.aborted) return;
+        const restoredOrigin = {
+          name: saved.origin.name,
+          longitude: saved.origin.coordinate[0],
+          latitude: saved.origin.coordinate[1],
+        };
+        const restoredDestination = {
+          name: saved.destination.name,
+          longitude: saved.destination.coordinate[0],
+          latitude: saved.destination.coordinate[1],
+        };
+        const date = new Date(saved.departure);
+        const localDeparture = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 16);
+        setOrigin(restoredOrigin);
+        setDestination(restoredDestination);
+        setDeparture(localDeparture);
+        setWeight(String(saved.load_lb));
+        setSpacing(saved.spacing_miles);
+        setScheduleBreaks(saved.schedule_breaks ?? true);
+        setPlannedInputs(
+          JSON.stringify({
+            origin: restoredOrigin,
+            destination: restoredDestination,
+            departure: localDeparture,
+            weight: String(saved.load_lb),
+            spacing: saved.spacing_miles,
+            scheduleBreaks: saved.schedule_breaks ?? true,
+          }),
+        );
+        setPlan(saved);
+        if (saved.trip_id) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('trip', saved.trip_id);
+          window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+        }
+        setSelectedId(saved.recommended_id ?? saved.routes[0].id);
+        setEditingTrip(false);
+        setMobilePanel(false);
+        clock.reset();
+      } catch (failure) {
+        if (request.signal.reason === 'unmount') return;
+        setError(
+          request.signal.aborted
+            ? 'Loading the saved comparison stopped. Compare a new trip or reopen the link.'
+            : failure instanceof Error
+              ? failure.message
+              : 'Saved comparison could not be loaded.',
+        );
+      } finally {
+        window.clearTimeout(timeout);
+        if (request.signal.reason !== 'unmount') {
+          setBusy(false);
+          setRestoring(false);
+        }
       }
-      frame = window.requestAnimationFrame(tick);
-    };
-    const pauseWhenHidden = () => {
-      if (document.hidden) setSimulation((current) => ({ ...current, playing: false }));
-    };
-    document.addEventListener('visibilitychange', pauseWhenHidden);
-    frame = window.requestAnimationFrame(tick);
+    }
+    void restore();
     return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener('visibilitychange', pauseWhenHidden);
+      request.abort('unmount');
+      window.clearTimeout(timeout);
     };
-  }, [simulation.playing, simulation.rate, driveDuration, page]);
+  }, [restoreId, clock]);
 
   function closeCheckpoints() {
     setCheckpointsOpen(false);
@@ -171,23 +237,26 @@ export default function App() {
     );
   }
 
-  const selectRoute = useCallback((id: string) => {
-    setSelectedId(id);
-    setFocusIndex(null);
-    setSimulation((current) => ({ ...current, playing: false, elapsed: 0 }));
-    if (window.matchMedia('(max-width: 760px)').matches) {
-      setMobilePanel(false);
-      window.requestAnimationFrame(() =>
-        document.querySelector<HTMLButtonElement>('.mobile-routes')?.focus(),
-      );
-    }
-  }, []);
+  const selectRoute = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      setFocusIndex(null);
+      clock.rewind();
+      if (window.matchMedia('(max-width: 760px)').matches) {
+        setMobilePanel(false);
+        window.requestAnimationFrame(() =>
+          document.querySelector<HTMLButtonElement>('.mobile-routes')?.focus(),
+        );
+      }
+    },
+    [clock, setSelectedId, setFocusIndex, setMobilePanel],
+  );
   function openMobileView(view: 'routes' | 'weather') {
     setSidebarView(view);
     setEditingTrip(false);
     setMobilePanel(!(mobilePanel && sidebarView === view && !editingTrip));
     setCheckpointsOpen(false);
-    setSimulation((current) => ({ ...current, visible: false, playing: false }));
+    clock.hide();
   }
   function closeMobilePanel() {
     setMobilePanel(false);
@@ -199,15 +268,10 @@ export default function App() {
     setEditingTrip(true);
     setMobilePanel(!(mobilePanel && editingTrip));
     setCheckpointsOpen(false);
-    setSimulation((current) => ({ ...current, visible: false, playing: false }));
+    clock.hide();
   }
   function startSimulation() {
-    setSimulation((current) => ({
-      ...current,
-      visible: true,
-      playing: true,
-      elapsed: current.elapsed >= driveDuration ? 0 : current.elapsed,
-    }));
+    clock.start();
     setHeatmap(true);
     setMobilePanel(false);
     setCheckpointsOpen(false);
@@ -216,7 +280,7 @@ export default function App() {
   function toggleCheckpoints() {
     setCheckpointsOpen(!checkpointsOpen);
     setMobilePanel(false);
-    setSimulation((current) => ({ ...current, visible: false, playing: false }));
+    clock.hide();
   }
   async function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -233,7 +297,7 @@ export default function App() {
     controller.current = request;
     const timeout = window.setTimeout(() => request.abort('timeout'), 95000);
     setBusy(true);
-    setSimulation((current) => ({ ...current, playing: false }));
+    clock.pause();
     try {
       const response = await fetch('/api/plan', {
         method: 'POST',
@@ -255,11 +319,15 @@ export default function App() {
       if (!parsed.success)
         throw new Error('The planner returned incomplete route data. Please retry.');
       setPlan(parsed.data);
+      if (parsed.data.trip_id) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('trip', parsed.data.trip_id);
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      }
       setEditingTrip(false);
       setMobilePanel(false);
       setSelectedId(parsed.data.recommended_id ?? parsed.data.routes[0].id);
-      setHour(0);
-      setSimulation(initialSimulation);
+      clock.reset();
       setFocusIndex(null);
       setPlannedInputs(currentInputs);
       if (window.matchMedia('(max-width: 760px)').matches)
@@ -372,7 +440,7 @@ export default function App() {
         </td>
       </tr>
     ));
-  }, [route, focusIndex]);
+  }, [route, focusIndex, setFocusIndex]);
 
   if (page === 'rules') return <Rules onNavigate={navigate} />;
 
@@ -507,6 +575,10 @@ export default function App() {
                       30 min after 8h driving; 10h rest after 11h. Assumes fresh shift and
                       sufficient cycle hours. No ELD connected.
                     </p>
+                    <p className="field-message">
+                      Completed comparisons get a saved link that expires after 7 days. Anyone with
+                      the link can view the trip and its original forecast.
+                    </p>
                   </fieldset>
                   {error && (
                     <div role="alert" className="error-message">
@@ -519,12 +591,12 @@ export default function App() {
                     </p>
                   )}
                   <div className="planning-actions">
-                    {busy && <PlanningProgress />}
+                    {busy && <PlanningProgress restoring={restoring} />}
                     <button type="submit" className="primary-button" disabled={busy}>
                       {busy ? (
                         <>
-                          <LoaderCircle className="spinner" size={18} aria-hidden="true" /> Checking
-                          routes & weather…
+                          <LoaderCircle className="spinner" size={18} aria-hidden="true" />
+                          {restoring ? 'Loading saved comparison…' : 'Checking routes & weather…'}
                         </>
                       ) : (
                         <>
@@ -538,13 +610,15 @@ export default function App() {
                         className="text-button cancel-button"
                         onClick={() => controller.current?.abort()}
                       >
-                        Cancel planning
+                        {restoring ? 'Cancel loading' : 'Cancel planning'}
                       </button>
                     )}
                   </div>
                   <span className="sr-only" role="status">
                     {busy
-                      ? 'Checking three routes and weather at each arrival time.'
+                      ? restoring
+                        ? 'Loading the original saved comparison.'
+                        : 'Checking three routes and weather at each arrival time.'
                       : plan
                         ? 'Route comparison ready.'
                         : ''}
@@ -632,6 +706,13 @@ export default function App() {
                     </details>
                   )}
                   <p className="recommendation-explanation">{plan.recommendation_reason}</p>
+                  {plan.trip_id && plan.expires_at && (
+                    <p className="driving-note">
+                      <a href={`/?trip=${plan.trip_id}`}>Reopen saved comparison</a> · available
+                      until {dateTime(plan.expires_at)}. Anyone with the link can view this trip.
+                      Reopening preserves the original forecast; compare again to update it.
+                    </p>
+                  )}
                   <p className="driving-note">
                     {plan.schedule_breaks
                       ? 'Arrivals include planned U.S. breaks and rest, assuming fresh duty clocks. Stop locations are estimates; verify parking and actual ELD records.'
@@ -650,92 +731,13 @@ export default function App() {
                 </>
               )}
             </section>
-            <section
-              className="forecast-panel"
-              hidden={!plan || sidebarView !== 'weather'}
-              aria-label="Corridor forecast"
-            >
-              <div className="forecast-heading">
-                <div>
-                  <CloudSun size={20} aria-hidden="true" />
-                  <strong>Corridor forecast</strong>
-                </div>
-                <label className="layer-toggle">
-                  <input
-                    type="checkbox"
-                    checked={heatmap}
-                    onChange={(e) => setHeatmap(e.target.checked)}
-                    disabled={!plan}
-                  />
-                  <Layers size={15} aria-hidden="true" /> Weather layer
-                </label>
-              </div>
-              <div className="forecast-time">
-                <span>
-                  {plan
-                    ? dateTime(
-                        new Date(Date.parse(plan.departure) + fieldHour * 3600000).toISOString(),
-                      )
-                    : 'Forecast starts at departure'}
-                </span>
-                <strong>+{Number(fieldHour.toFixed(1))}h</strong>
-              </div>
-              <input
-                aria-label="Forecast hour after departure"
-                className="forecast-slider"
-                type="range"
-                min="0"
-                max="48"
-                step="0.1"
-                value={Number(fieldHour.toFixed(1))}
-                onChange={(e) => {
-                  setHour(Number(e.target.value));
-                  setSimulation((current) => ({ ...current, visible: false, playing: false }));
-                }}
-                disabled={!plan}
-                aria-valuetext={`${Number(fieldHour.toFixed(1))} hours after departure`}
-              />
-              <div className="slider-labels">
-                <span>Departure</span>
-                <span>+12h</span>
-                <span>+24h</span>
-                <span>+36h</span>
-                <span>+48h</span>
-              </div>
-              <div className="legend" aria-label="Risk legend">
-                {labels.map((label, i) => (
-                  <span key={label}>
-                    <i style={{ backgroundColor: colors[i] }} />
-                    {label}
-                  </span>
-                ))}
-              </div>
-              {plan && (
-                <div className="forecast-freshness">
-                  <strong>Forecast retrieved</strong>
-                  <span>
-                    {plan.sources.forecast_retrieved_at
-                      ? dateTime(plan.sources.forecast_retrieved_at)
-                      : 'Timestamp unavailable'}
-                  </span>
-                  <p>
-                    Oldest retrieval across weather batches. This is not the model issue time.
-                    Cached for up to 10 minutes; displayed trips do not refresh automatically.
-                  </p>
-                </div>
-              )}
-              <p className="weather-rules-link">
-                <a href="/rules#weather" onClick={navigate}>
-                  Weather updates & map guide
-                </a>
-              </p>
-              <p className="forecast-source">
-                <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
-                  Open-Meteo
-                </a>{' '}
-                · interpolated hourly forecast
-              </p>
-            </section>
+            <ForecastPanel
+              plan={plan}
+              sidebarView={sidebarView}
+              heatmap={heatmap}
+              setHeatmap={setHeatmap}
+              navigate={navigate}
+            />
             <p className="sidebar-warning">
               Planning estimate only. Check truck restrictions and official road advisories before
               travel.
@@ -744,20 +746,18 @@ export default function App() {
         </aside>
         <div className="workspace">
           <section className="map-section" aria-label="Trip map">
-            <RouteMap
+            <ForecastMap
               plan={plan}
               selectedId={selectedId}
-              hour={fieldHour}
               heatmap={heatmap}
               focusIndex={focusIndex}
               onSelect={selectRoute}
               fitRequest={fitRequest}
-              driverPosition={driverPosition}
               locationFix={location.fix}
               locationStale={location.stale || !location.online || !!location.error}
               locationFocus={locationFocus}
             />
-            <MapTools
+            <ForecastMapTools
               motion={motion}
               onMotion={setMotion}
               appearance={appearance}
@@ -771,31 +771,10 @@ export default function App() {
               onSimulate={startSimulation}
               canFit={!!plan}
               canSimulate={!!route && hasTiming(route) && !dirty && !busy}
-              simulating={simulation.visible}
               onNavigate={navigate}
             />
           </section>
-          {simulation.visible && plan && route && (
-            <SimulationControls
-              plan={plan}
-              route={route}
-              state={simulation}
-              onChange={setSimulation}
-              onClose={() => {
-                setSimulation((current) => ({ ...current, visible: false, playing: false }));
-                setHour(Math.min(48, Math.floor(simulation.elapsed / 3600)));
-                window.requestAnimationFrame(() =>
-                  document
-                    .querySelector<HTMLButtonElement>(
-                      window.matchMedia('(max-width: 760px)').matches
-                        ? '.mobile-simulate'
-                        : '.map-toolbar .simulate-button',
-                    )
-                    ?.focus(),
-                );
-              }}
-            />
-          )}
+          <DrivePreview plan={plan} route={route} />
           <div className="map-toolbar">
             <span>
               {route
@@ -803,17 +782,10 @@ export default function App() {
                 : 'Compare a trip to see routes and weather'}
             </span>
             <div>
-              {!simulation.visible && (
-                <button
-                  type="button"
-                  className="simulate-button"
-                  disabled={!route || !hasTiming(route) || dirty || busy}
-                  aria-expanded={simulation.visible}
-                  onClick={startSimulation}
-                >
-                  <Play size={15} aria-hidden="true" /> Simulate drive
-                </button>
-              )}
+              <SimulationLauncher
+                disabled={!route || !hasTiming(route) || dirty || busy}
+                onStart={startSimulation}
+              />
               <button
                 type="button"
                 className="text-button"

@@ -76,7 +76,10 @@ export function Rules({
             </li>
             <li>Prefer fewer Severe miles, then fewer High miles.</li>
             <li>Compare average risk, weighted by miles.</li>
-            <li>Use estimated driving time to break remaining ties.</li>
+            <li>
+              Use total scheduled travel time, including planned breaks and rest, to break remaining
+              ties.
+            </li>
           </ol>
           <p>
             Each interval takes the worse risk of its two endpoints. Average risk uses an ordinal
@@ -184,6 +187,15 @@ export function Rules({
                 Use Edit trip → Compare routes to request another comparison. Within the cache
                 window it may reuse the same forecast. Update departure if it has moved; breaks and
                 delays change when you encounter weather.
+              </dd>
+            </div>
+            <div>
+              <dt>Saved comparisons</dt>
+              <dd>
+                Completed trips, routes, checkpoints, and forecast snapshots are saved. Links expire
+                after 7 days. The saved link reopens the original comparison without fetching new
+                weather. Anyone with the link can view it; there are no user accounts or private
+                trip lists. Use Compare routes again to update the forecast and schedule.
               </dd>
             </div>
             <div>

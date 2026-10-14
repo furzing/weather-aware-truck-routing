@@ -14,6 +14,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 import django  # noqa: E402
 
 django.setup()
+from django.test.utils import setup_databases, teardown_databases  # noqa: E402
 from routing.risk import classify  # noqa: E402
 
 
@@ -30,7 +31,13 @@ class EvaluationResult(unittest.TextTestResult):
 
 def run(names):
     suite = unittest.defaultTestLoader.loadTestsFromNames(names)
-    return unittest.TextTestRunner(stream=io.StringIO(), resultclass=EvaluationResult).run(suite)
+    databases = setup_databases(verbosity=0, interactive=False)
+    try:
+        return unittest.TextTestRunner(stream=io.StringIO(), resultclass=EvaluationResult).run(
+            suite
+        )
+    finally:
+        teardown_databases(databases, verbosity=0)
 
 
 def low_wind_limit(wind, rain, snow, load):

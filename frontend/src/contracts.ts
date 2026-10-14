@@ -61,6 +61,8 @@ export const placeSchema = z.object({
 });
 export const placesSchema = z.object({ places: z.array(placeSchema) });
 export const planSchema = z.object({
+  trip_id: z.uuid().optional(),
+  expires_at: z.iso.datetime({ offset: true }).optional(),
   routes: z.array(route).length(3),
   recommended_id: z.string().nullable(),
   recommendation_reason: z.string(),

@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY scripts/serve.py ./backend/serve.py
 COPY --from=frontend /build/frontend/dist ./frontend/dist
-RUN python backend/manage.py collectstatic --noinput && useradd --uid 10001 --create-home appuser
+RUN python backend/manage.py collectstatic --noinput && useradd --uid 10001 --create-home appuser && mkdir /app/data && chown appuser /app/data
+ENV SQLITE_PATH=/app/data/db.sqlite3
 USER appuser
 WORKDIR /app/backend
 EXPOSE 8000

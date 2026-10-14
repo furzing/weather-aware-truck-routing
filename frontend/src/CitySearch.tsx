@@ -13,6 +13,7 @@ function CitySearchComponent({
 }) {
   const id = useId();
   const [text, setText] = useState(value?.name ?? '');
+  const query = value?.name ?? text;
   const [results, setResults] = useState<Place[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -27,7 +28,7 @@ function CitySearchComponent({
     setResults([]);
     setActive(-1);
     try {
-      const response = await fetch(`/api/places?q=${encodeURIComponent(text.trim())}`, {
+      const response = await fetch(`/api/places?q=${encodeURIComponent(query.trim())}`, {
         signal: controller.signal,
       });
       const parsed = placesSchema.safeParse(await responseBody(response));
@@ -57,7 +58,7 @@ function CitySearchComponent({
         <MapPin size={17} aria-hidden="true" />
         <input
           id={id}
-          value={text}
+          value={query}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={results.length > 0}
@@ -91,7 +92,7 @@ function CitySearchComponent({
             if (e.key === 'Enter') {
               e.preventDefault();
               if (active >= 0 && results[active]) choose(results[active]);
-              else if (text.trim().length >= 2) void search();
+              else if (query.trim().length >= 2) void search();
             }
           }}
         />
@@ -99,7 +100,7 @@ function CitySearchComponent({
           type="button"
           className="search-button"
           aria-label={`Search ${label.toLowerCase()}`}
-          disabled={busy || text.trim().length < 2}
+          disabled={busy || query.trim().length < 2}
           onClick={() => void search()}
         >
           <Search size={17} aria-hidden="true" />

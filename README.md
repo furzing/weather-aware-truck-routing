@@ -1,12 +1,12 @@
 # Weather-Aware Truck Routing
 
-React + TypeScript + Django assessment for comparing three road routes using forecast weather, load weight, and driving time. The app checks weather at each checkpoint's estimated arrival, recommends a route using the assessment's priority order, and displays an independent 0–48 hour corridor forecast.
+React + TypeScript + Django assessment for comparing three road routes using forecast weather, load weight, and scheduled travel time. The app checks weather at each checkpoint's estimated arrival, recommends a route using the assessment's priority order, and displays an independent 0–48 hour corridor forecast.
 
-Repository: [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing) (private). [GitHub Actions](https://github.com/furzing/weather-aware-truck-routing/actions) verifies the app and deployment preparation. Railway with Railpack is the selected deployment target; no local Docker is required. See the [deployment guide](docs/deployment.md). No public deployment exists yet.
+Repository: [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing) (private). [GitHub Actions](https://github.com/furzing/weather-aware-truck-routing/actions) verifies the app and deployment preparation. Railway with Railpack is the selected deployment target; no local Docker is required. See the [deployment guide](docs/deployment.md). A Railway deployment was submitted; verify the latest public revision separately.
 
 ## Run locally
 
-Requires Python 3.13 and Node.js 24. No API key or database is needed for this local evaluation. Internet access is needed for routing, city search, weather, and map tiles.
+Requires Python 3.13 and Node.js 24. No API key or separate database service is needed locally. Django uses SQLite for saved comparisons. Internet access is needed for routing, city search, weather, and map tiles.
 
 From the project directory in PowerShell:
 
@@ -17,11 +17,12 @@ npm --prefix frontend ci
 .\scripts\start.ps1
 ```
 
-Open **http://127.0.0.1:8000**. The launcher builds React, collects static assets, and serves the complete application through Waitress. It stays in the terminal; Ctrl+C stops it.
+Open **http://127.0.0.1:8000**. The launcher builds React, collects static assets, migrates SQLite, and serves the complete application through Waitress. It stays in the terminal; Ctrl+C stops it.
 
 For frontend development, run Django in one terminal and Vite in another:
 
 ```powershell
+.\.venv\Scripts\python backend\manage.py migrate
 .\.venv\Scripts\python backend\manage.py runserver 127.0.0.1:8000
 npm --prefix frontend run dev
 ```
@@ -34,7 +35,7 @@ Then open http://127.0.0.1:5173. Vite proxies `/api` to Django. Do not use the D
 2. Set departure in the next 72 hours, load weight in pounds, and checkpoint spacing of 10, 25, or 50 miles. Dates and ETAs display in the browser's labelled timezone; requests and calculations use UTC.
 3. Compare routes. Inputs collapse to a summary; Edit trip reopens them. Select a route in the Routes view. The map stays unobstructed; open Checkpoints in the bottom action strip to inspect arrival times and risk explanations. A table checkpoint pans the map; Fit routes restores the whole trip.
 4. Open Weather in the sidebar and move the forecast slider from departure through +48 hours. It updates the preloaded, interpolated weather field without making forecast requests. Route risk remains tied to checkpoint ETAs. The sidebar shows when forecasts were retrieved and explains the 10-minute cache; displayed trips do not automatically refresh.
-5. Open **Rules** at `/rules` for ranking mechanics, weather/load thresholds, forecast updates, U.S. federal property-carrying HOS guidance, ELD record practices, and departure checks. Returning to the planner preserves the current trip in memory. Reloading the app starts a new session.
+5. Open **Rules** at `/rules` for ranking mechanics, weather/load thresholds, forecast updates, U.S. federal property-carrying HOS guidance, ELD record practices, and departure checks. Returning to the planner preserves the current trip in memory. The saved link restores the original comparison after reload, without refreshing forecasts. Links expire after seven days; anyone with the link can view the trip.
 6. Press **Simulate drive** to advance a truck marker along the selected road using its segment travel times. Forecast time and the weather field advance together. Pause, seek, reset, or change playback speed; arrival stops playback. Route changes and leaving the planner pause it. The conditions at the marker are interpolated display estimates; the next High-or-worse checkpoint retains its original arrival-based assessment.
 
 On phones, a bottom dock contains Trip, Routes, Weather, and Checkpoints. Routes and Weather open upward in a scrollable sheet capped at 36% of the viewport; the map refits above it. Selecting a route closes the sheet; another press, Close planning panel, or Escape also closes it. Trip opens the input form with its Compare action kept visible while scrolling. Settings, GPS, Fit routes, playback, and zoom sit near the map's bottom edge; Rules is in Map settings. The dock uses dynamic viewport height and bottom safe-area padding rather than overlapping the browser or gesture area.
@@ -113,7 +114,7 @@ The default Chicago–Detroit recording goes to ignored `output/provider-recordi
 
 `backend/routing/risk.py` owns the supplied thresholds and lexicographic recommendation. `geometry.py` samples road geometry using segment distances and durations. `providers.py` validates upstream weather units, hours, and missing values. `service.py` assembles the comparison. Django validates and bounds API requests. React validates response data with Zod, owns form/selection state, and synchronizes map layers through Leaflet.
 
-The only endpoints are `GET /api/health`, `GET /api/places?q=Chicago`, and `POST /api/plan`. The application stores no user accounts or trips. Its POST performs a stateless calculation, with no cookie authentication or persisted mutation. The API contract and modelling decisions are in [docs/decisions.md](docs/decisions.md).
+Endpoints are `GET /api/health`, `GET /api/places?q=Chicago`, `POST /api/plan`, and `GET /api/plans/<uuid>`. A completed POST atomically saves Trip → Route → Checkpoint records and returns an ORM reconstruction. Saved links restore the original forecast snapshot. There are no accounts or public trip lists; possession of the random link grants access until expiry. SQLite needs persistent storage in hosting. The API contract and modelling decisions are in [docs/decisions.md](docs/decisions.md).
 
 ## Limits that matter
 

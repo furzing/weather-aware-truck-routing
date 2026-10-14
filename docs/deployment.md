@@ -2,14 +2,15 @@
 
 ## Railway (selected target)
 
-Railway builds this React + Django application from GitHub using Railpack. No local Docker installation or Cloudflare subscription is required. One Waitress service serves React and Django from the same origin. No database or persistent volume is needed.
+Railway builds this React + Django application from GitHub using Railpack. No local Docker installation or Cloudflare subscription is required. One Waitress service serves React and Django from the same origin. SQLite stores completed comparisons. A persistent volume is required to retain them across deployments.
 
 1. Create a Railway project from the private `furzing/weather-aware-truck-routing` repository, granting the GitHub integration access. Use branch `main` and the repository root.
 2. Use the committed `railway.json`: **Railpack** builder, build command `bash scripts/build.sh`, start command `python scripts/serve.py`, health path `/api/health`. Select Railpack explicitly if the dashboard detects the optional Dockerfile. `railpack.json` selects Python 3.13 and Node 24. The build installs locked dependencies, builds React, and collects static files.
-3. Add a fresh random `SECRET_KEY` in Railway Variables and set `DEBUG=false`. Generate it with a password manager; never put it in source or chat. The app reads `RAILWAY_PUBLIC_DOMAIN` for its allowed host and permits Railway's health-check hostname. Add any custom hostnames explicitly to `ALLOWED_HOSTS`; do not use `*`.
-4. Leave `TRUST_PROXY=false` and `SECURE_SSL_REDIRECT=false` for this configuration. Public HTTPS terminates at Railway. Verify the platform's HTTP-to-HTTPS behavior externally; the app does not trust arbitrary forwarded headers.
-5. Generate a public domain in Networking and deploy/redeploy with that hostname available. The server binds `0.0.0.0` and reads Railway's `PORT`; no override is needed. Keep one replica because cache and admission limits are process-local.
-6. Run the checks below, test a real phone, and record the deployed commit, deployment identifier, results, and Loom URL before submitting.
+3. Attach a Railway volume mounted at `/data` and set `SQLITE_PATH=/data/db.sqlite3`. Keep one replica. Without a volume, comparisons can disappear on container replacement. Volume billing and availability depend on your Railway account; no volume has been created by this change.
+4. Add a fresh random `SECRET_KEY` in Railway Variables and set `DEBUG=false`. Generate it with a password manager; never put it in source or chat. The app reads `RAILWAY_PUBLIC_DOMAIN` for its allowed host and permits Railway's health-check hostname. Add any custom hostnames explicitly to `ALLOWED_HOSTS`; do not use `*`.
+5. Leave `TRUST_PROXY=false` and `SECURE_SSL_REDIRECT=false` for this configuration. Public HTTPS terminates at Railway. Verify the platform's HTTP-to-HTTPS behavior externally; the app does not trust arbitrary forwarded headers.
+6. Generate a public domain in Networking and deploy/redeploy with that hostname available. The server binds `0.0.0.0` and reads Railway's `PORT`; no override is needed. Keep one replica because cache and admission limits are process-local.
+7. Run the checks below, test a real phone, and record the deployed commit, deployment identifier, results, and Loom URL before submitting.
 
 ```powershell
 cd E:\spotter\weather-aware-truck-routing
@@ -27,15 +28,26 @@ Railway currently lists a 30-day trial with $5 credit, a Free plan with a small 
 
 Sources: [Django deployment](https://docs.railway.com/guides/django), [config as code](https://docs.railway.com/reference/config-as-code), [Railpack configuration](https://railpack.com/config/file/), [pricing](https://railway.com/pricing).
 
+### Saved comparisons
+
+The service runs migrations before accepting requests. SQLite uses `SQLITE_PATH`, defaulting to `backend/db.sqlite3` locally. On Railway attach a persistent volume at `/data`, then set `SQLITE_PATH=/data/db.sqlite3`. Keep one replica and one migration/startup process. A path variable without a mounted volume is not durable storage. The revision does not provision a volume or change billing. See [Railway volumes](https://docs.railway.com/volumes).
+
+Saved links expire after seven days. Physical cleanup runs at startup; on a continuously running instance run `python backend/manage.py purge_expired_trips` daily using your operator tooling. This deletes expired trips and cascades to their routes/checkpoints. Forecast snapshots do not refresh when reopened. There are no accounts; treat the random saved URL as an access link, not an authenticated private record.
+
+For backup, use SQLite's online backup API (or stop writes before copying the database). Keep backups outside the container and test restoring to a separate path. Before schema changes, take a backup and rehearse migration/rollback; reverting application code does not undo stored data. The initial migration only creates new tables. Tests verify schema constraints, atomic rollback, and bounded-query reads on SQLite; PostgreSQL and multiple writers across replicas have not been evaluated.
+
+The optional Cloudflare Container path has ephemeral disk. Its builds remain checked, but it does not provide durable saved comparisons without a separate storage design. Use the Railway volume setup for this revision.
+
 ## Other prepared paths
 
-The private repository is [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing). The app runs locally through `scripts/start.ps1`. Cloudflare is an optional prepared path; Railway is the selected target. No public deployment has been created. Docker is unavailable on this machine, so container build/smoke verification runs in GitHub Actions.
+The private repository is [furzing/weather-aware-truck-routing](https://github.com/furzing/weather-aware-truck-routing). The app runs locally through `scripts/start.ps1`. Cloudflare is an optional prepared path; Railway is the selected target. The user submitted a Railway deployment; the latest public revision still needs verification. Docker is unavailable on this machine, so container build/smoke verification runs in GitHub Actions.
 
-The prepared image serves the built React application, Django API, and compressed static files from one origin using Waitress. No writable application storage, migrations, database, background worker, or external cache is required for this assessment. Rebuild to roll back to a previous revision; there are no persisted trip records to migrate.
+The prepared image serves the built React application, Django API, and compressed static files from one origin using Waitress. Startup applies Django migrations before serving. The image uses writable `/app/data` for SQLite; mount persistent storage there to retain comparisons. Back up the database before changing schema or rolling back. No background worker or external cache is required.
 
 ```sh
 docker build -t weather-aware-truck-routing .
 docker run --rm -p 8000:8000 \
+  --mount type=volume,source=weather-routing-data,target=/app/data \
   -e SECRET_KEY='<random deployment secret>' \
   -e ALLOWED_HOSTS='localhost,127.0.0.1,your-host.example' \
   weather-aware-truck-routing

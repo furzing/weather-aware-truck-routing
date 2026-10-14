@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from django.conf import settings
 from django.core.cache import cache
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from .geometry import checkpoints, road_overlap
 from .providers import ProviderError, Providers, location_key, weather_at
@@ -19,7 +19,7 @@ from .risk import LABELS, classify, explain_recommendation, recommendation, summ
 from .tests import forecast, road, trip
 
 
-class ScenarioTests(SimpleTestCase):
+class ScenarioTests(TestCase):
     def test_golden_route_decisions(self):
         cases = json.loads((Path(__file__).parent / "fixtures/scenarios.json").read_text())
         for case in cases:

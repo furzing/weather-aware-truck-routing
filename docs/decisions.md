@@ -6,11 +6,11 @@ The brief's rain and snow intervals overlap. At shared boundaries, the higher ri
 
 Load comparisons are strictly greater than 30,000 / 40,000 lb, as written. Overall risk is the maximum of wind, rain, and snow after applying load rules. Values 0–4 are ordinal categories, not calibrated safety probabilities.
 
-No Travel is a hard exclusion before ranking. Eligible routes are compared by the exact tuple `(Severe miles, High miles, distance-weighted average ordinal risk, driving seconds)`, with a stable route identifier for exact ties. No time penalty can make a No Travel route eligible. When all routes are excluded, `recommended_id` is null.
+No Travel is a hard exclusion before ranking. Eligible routes are compared by the exact tuple `(Severe miles, High miles, distance-weighted average ordinal risk, total scheduled seconds)`, with a stable route identifier for exact ties. No time penalty can make a No Travel route eligible. When all routes are excluded, `recommended_id` is null.
 
 ## Geometry, arrival, and exposure
 
-OSRM full GeoJSON geometry must align with the concatenated per-leg distance and duration annotations. Checkpoints include origin, exact requested mile intervals, and destination, without duplicating an exactly aligned destination. Segment interpolation determines geographic location and elapsed time. Annotation totals are scaled to OSRM's route distance and duration so the destination ETA agrees with the provider total, including turn costs. Turn cost placement within the trip is approximate; this is more faithful than constant-speed interpolation over the whole route. Times exclude traffic, breaks, and driver duty limits.
+OSRM full GeoJSON geometry must align with the concatenated per-leg distance and duration annotations. Checkpoints include origin, exact requested mile intervals, and destination, without duplicating an exactly aligned destination. Segment interpolation determines geographic location and elapsed time. Annotation totals are scaled to OSRM's route distance and duration so the destination ETA agrees with the provider total, including turn costs. Turn cost placement within the trip is approximate; this is more faithful than constant-speed interpolation over the whole route. Driving annotations exclude traffic and duty information. The schedule adds standard U.S. breaks/rest by default, and downstream ETAs include those stops. Driver-specific remaining duty clocks are not known.
 
 Each checkpoint interval contributes its actual length to the worse of its endpoints' categories. The final partial interval has only its real length. Risk miles sum to total route miles. This is conservative between observed endpoints, but cannot establish the absence of an unobserved hazard. Changing spacing changes the sampling resolution, not the definition of a mile or the ranking policy.
 
@@ -34,11 +34,11 @@ The recommendation explanation compares the winner with the next eligible route 
 
 Each route now exposes `geometry_elapsed_s`, one cumulative time per GeoJSON vertex. It uses the same validated OSRM annotations and total-duration scaling as checkpoints. The client checks alignment, monotonicity, finite values, and the destination total before enabling playback. Missing timing disables playback; it does not create a constant-speed substitute. Binary search selects the current road segment, followed by interpolation within that segment. Duplicate zero-duration vertices are supported, and arrival clamps to the exact final coordinate.
 
-The animation advances estimated continuous-driving time, not a driver's real position. The default speed shows one driving hour in five seconds; slower and faster choices are available. Updates are bounded to roughly 12 per second, with a short marker transition. Backgrounding the document, changing routes, submitting a comparison, or opening Rules pauses playback. Seeking pauses; reaching arrival stops and offers replay. It performs no additional provider requests.
+The animation advances estimated elapsed journey time and holds the marker during scheduled stops; it does not track the driver's real position. The default speed shows one driving hour in five seconds; slower and faster choices are available. Updates are bounded to roughly 12 per second, with a short marker transition. Backgrounding the document, changing routes, submitting a comparison, or opening Rules pauses playback. Seeking pauses; reaching arrival stops and offers replay. It performs no additional provider requests.
 
 Fractional forecast hours interpolate wind/rain/snow between adjacent preloaded samples before classifying the weather field. The marker's estimated conditions use the same bounded spatial weighting in Web Mercator. The canvas uses six screen pixels per sample during preview, versus four for manual inspection, to bound redraw work; this changes display sampling, not forecast resolution. Checkpoint risk, risk miles, eligibility, and ranking remain unchanged. The next High-or-worse checkpoint is an arrival-based sample, not a promise to detect every intervening hazard. An excluded route can be inspected, with its No Travel warning retained.
 
-No rest, break, loading, live traffic, or duty-clock scheduling is included. The Rules page explains these assumptions. The preview cannot demonstrate a legally feasible schedule or validate forecast accuracy.
+Standard U.S. break/rest timing is included when enabled, assuming fresh clocks and sufficient weekly cycle hours. Loading, traffic, real duty history, and verified parking are excluded. The Rules page explains these assumptions. The preview cannot demonstrate a legally feasible schedule or validate forecast accuracy.
 
 ## Device location and appearance
 
@@ -48,13 +48,13 @@ The reported accuracy sets a meter-radius circle; it is not independently calibr
 
 `navigator.onLine` is a browser connectivity hint, not proof that any provider is reachable. Offline watching pauses as requested; an online state cannot guarantee a fix or successful weather retrieval. Geolocation needs browser permission and a secure context, with localhost available for local evaluation. Browser checks emulate native geolocation and permissions; physical GPS accuracy and background-device behavior are unverified. Sources: [MDN watchPosition](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/watchPosition), [MDN onLine](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/onLine).
 
-Appearance is Light by default, with Dark and opt-in Auto (local 20:00 through 05:59). It checks time every 30 seconds and on visibility changes; this is a clock schedule, not a sunset calculation. Only the appearance choice is saved, with an in-memory fallback when storage is blocked. CSS tokens cover app surfaces, text, controls, and badges; a filter affects only raster tiles, preserving route/weather overlays and the existing tile provider. No automatic changes are based on trip departure or GPS.
+Appearance is Light by default, with Dark and opt-in Auto (local 20:00 through 05:59). It checks time every 30 seconds and on visibility changes; this is a clock schedule, not a sunset calculation. Appearance and motion preferences are saved locally, with an in-memory fallback when storage is blocked. CSS tokens cover app surfaces, text, controls, and badges; a filter affects only raster tiles, preserving route/weather overlays and the existing tile provider. No automatic changes are based on trip departure or GPS.
 
 ## ELD and scheduling scope
 
 Rules (`/rules`) separates the assessment policy from regulatory guidance. It describes the general U.S. federal interstate property-carrying baseline; it is not a rules engine for every jurisdiction or exemption. No Spotter ELD capability or integration is assumed. This app reads no duty logs, does not authenticate a driver, and does not establish remaining driving/window/break/cycle availability.
 
-Route durations and checkpoint arrivals remain continuous-driving car-profile estimates. The weather ranking is unchanged. Contextual cues above 8 and 11 estimated driving hours are prompts to review a schedule, not violation findings. A future duty-aware planner must consume authenticated, current duty history and applicable rules, schedule stops/rest, and recompute weather at the revised ETAs. Simply adding a fixed break to every trip would misrepresent remaining clocks, loading time, sleeper-berth rules, and multi-day cycles.
+Driving duration remains a car-profile estimate. Total duration, checkpoint arrivals, and the final ranking tie-breaker include the selected break/rest schedule. This assumes a fresh shift and sufficient weekly cycle availability; it does not determine actual compliance. A driver-specific planner would need authenticated duty history, applicable rules, and verified parking before choosing stop locations.
 
 The page explicitly avoids preallocating adverse-condition extensions. The applicable test concerns conditions unknown or not reasonably knowable before the relevant driving/dispatch point; a forecast warning does not itself grant additional hours. ELD edits, certification, and driver approval remain in the actual ELD. No compliance records are created here.
 
@@ -84,7 +84,7 @@ Use a departure within the next 72 hours when testing; the example date is illus
 
 Response fields are validated in `frontend/src/contracts.ts`. Each route includes geometry, colored road segments, distance, driving duration, arrival, checkpoints and summary; a checkpoint includes miles, coordinate, elapsed seconds, UTC ETA, weather units encoded in field names, forecast hour, and risk with reasons. The response also includes corridor cells and their `[latitude, longitude]` Leaflet rectangle bounds, 49 absolute forecast times, input context, sources, warnings, and recommendation.
 
-Errors use `{"error":{"code":"…","message":"…"}}`: 400 invalid request, 415 unsupported content type, 429 request limit, 502 upstream failure, 503 busy. HTTP method errors use Django's 405. Health checks process liveness only; an upstream outage does not make a healthy process fail liveness.
+Errors use `{"error":{"code":"…","message":"…"}}`: 400 invalid request, 415 unsupported content type, 429 request limit, 502 upstream failure, 503 busy. HTTP method errors use Django's 405. Health checks verify application and trip-table availability; an upstream outage does not make a healthy process fail liveness.
 
 ## Runtime and security scope
 

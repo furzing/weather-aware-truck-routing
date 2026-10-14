@@ -68,7 +68,7 @@ The interval between two checkpoints receives the worse endpoint risk. A 25-mile
 
 Average risk is weighted by distance. For 25 Moderate miles (ordinal value 1) and 2 Severe miles (value 3), the average is `(25 × 1 + 2 × 3) / 27`, about 1.15. A short final interval does not receive the weight of a full 25-mile interval. The 0–4 categories are ordinal; 1.15 is not a crash probability.
 
-No Travel is a hard exclusion. Eligible routes are compared in order: fewest Severe miles, then fewest High miles, then lowest distance-weighted average risk, then shortest driving time. This is lexicographic ordering: later criteria cannot compensate for a worse earlier criterion. A faster route with Severe exposure loses to one without it. Exact ties use a stable route ID. All routes blocked means no recommendation, rather than selecting the least bad blocked route.
+No Travel is a hard exclusion. Eligible routes are compared in order: fewest Severe miles, then fewest High miles, then lowest distance-weighted average risk, then shortest total scheduled travel time, including planned stops. This is lexicographic ordering: later criteria cannot compensate for a worse earlier criterion. A faster route with Severe exposure loses to one without it. Exact ties use a stable route ID. All routes blocked means no recommendation, rather than selecting the least bad blocked route.
 
 The explanation identifies the first criterion separating the winner from the next eligible option. When today's routes are all Low, time may decide. That is a valid result; it does not demonstrate storm avoidance.
 
@@ -108,7 +108,7 @@ Forecast responses are cached for ten minutes; routes use a longer cache. The UI
 
 Provider calls have bounded timeouts, limited retry behavior, a planning deadline, and bounded concurrency. The browser can cancel waiting and has a 95-second timeout. Cancelling the browser does not guarantee that work already running in Django or an upstream service stops immediately. These limits and caches are process-local, which is why the assessment deployment uses one instance.
 
-Verification has distinct purposes. The 59 backend/frontend/Worker tests check implementation boundaries. Twelve manually specified scenarios and 500 weather/load combinations check expected policy behavior. Three deliberate mistakes test whether the checks can catch selected defects. Provider recordings replay with HTTP disabled to detect integration regressions. Browser checks exercise interaction, errors, keyboard controls, responsive layouts, temporal storms, reduced motion, and emulated GPS.
+Verification has distinct purposes. The backend/frontend/Worker tests check implementation boundaries. Twelve manually specified scenarios and 500 weather/load combinations check expected policy behavior. Three deliberate mistakes test whether the checks can catch selected defects. Provider recordings replay with HTTP disabled to detect integration regressions. Browser checks exercise interaction, errors, keyboard controls, responsive layouts, temporal storms, reduced motion, and emulated GPS.
 
 Separate live comparisons confirm the APIs can work together at a moment in time. They do not prove forecast accuracy, travel-time accuracy, improved fleet outcomes, or availability guarantees. Historical weather observations, real trip traces, missed-hazard/false-alert measurements, and driver-specific duty data would be needed for those stronger claims.
 
@@ -116,7 +116,7 @@ Separate live comparisons confirm the APIs can work together at a moment in time
 
 React/TypeScript owns interaction and Leaflet rendering. Django owns validation, providers, geometry, scheduling, classification, and ranking. Zod checks the response contract before displaying it. Provider adapters are separate from policy so upstream changes and domain rules can be tested independently.
 
-There is no database because this version has no accounts, saved trips, or duty records. Trips live in browser memory. Appearance/motion preferences are stored locally; device coordinates are not persisted or sent to the planner API. GPS is opt-in and separate from the simulation.
+Django now persists completed comparisons in SQLite using Trip, Route, and Checkpoint models. A saved link restores the original forecasts and results without provider calls; links expire after seven days. Anyone with the unlisted link can view that comparison. There are no user accounts or duty records, and durable hosting requires a persistent volume. Appearance/motion preferences are stored locally; device coordinates are not persisted or sent to the planner API. GPS is opt-in and separate from the simulation.
 
 Railway is prepared to build with Railpack using Python 3.13 and Node 24. One Waitress service serves built React and the Django API, with WhiteNoise for static assets. Same-origin delivery avoids a separate frontend/API CORS configuration. No local Docker is required. CI verifies builds, types, lint, tests, native startup, and HTTP/static smoke behavior. A public Railway runtime still needs deployment and external verification.
 

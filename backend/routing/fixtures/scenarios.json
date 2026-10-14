@@ -1,14 +1,14 @@
 [
-  {"name":"all_clear_time_decides","load":38000,"routes":[[100,7200,10,0,0],[120,6000,10,0,0],[90,9000,10,0,0]],"levels":[0,0,0],"recommended":"route-2","reason":"driving time"},
+  {"name":"all_clear_time_decides","load":38000,"routes":[[100,7200,10,0,0],[120,6000,10,0,0],[90,9000,10,0,0]],"levels":[0,0,0],"recommended":"route-2","reason":"scheduled travel time"},
   {"name":"severe_before_time","load":0,"routes":[[100,3600,50,0,0],[100,7200,40,0,0],[100,10800,30,0,0]],"levels":[3,2,1],"recommended":"route-3","reason":"High exposure"},
   {"name":"severe_miles_before_high","load":0,"routes":[[10,3600,50,0,0],[100,7200,40,0,0],[20,1800,50,0,0]],"levels":[3,2,3],"recommended":"route-2","reason":"Severe exposure"},
   {"name":"average_before_time","load":0,"routes":[[100,3600,30,0,0],[100,7200,10,0,0],[100,9000,30,0,0]],"levels":[1,0,1],"recommended":"route-2","reason":"average risk"},
   {"name":"heavy_wind_blocks_fastest","load":38000,"routes":[[100,3600,45,0,0],[100,7200,35,0,0],[100,9000,30,0,0]],"levels":[4,2,1],"recommended":"route-3","reason":"High exposure"},
   {"name":"one_eligible","load":41000,"routes":[[100,3600,45,0,0],[100,7200,10,0,0],[100,9000,55,0,0]],"levels":[4,0,4],"recommended":"route-2","reason":"only route"},
   {"name":"all_blocked_different_causes","load":0,"routes":[[100,3600,55,0,0],[100,7200,0,1.01,0],[100,9000,0,0,3.01]],"levels":[4,4,4],"recommended":null,"reason":"Every route"},
-  {"name":"load_exact_30000","load":30000,"routes":[[100,3600,45,0,0],[100,7200,50,0,0],[100,9000,54,0,0]],"levels":[3,3,3],"recommended":"route-1","reason":"driving time"},
+  {"name":"load_exact_30000","load":30000,"routes":[[100,3600,45,0,0],[100,7200,50,0,0],[100,9000,54,0,0]],"levels":[3,3,3],"recommended":"route-1","reason":"scheduled travel time"},
   {"name":"load_above_30000","load":30001,"routes":[[100,3600,45,0,0],[100,7200,50,0,0],[100,9000,54,0,0]],"levels":[4,4,4],"recommended":null,"reason":"Every route"},
   {"name":"rain_snow_shared_boundaries","load":0,"routes":[[100,3600,0,0.25,0],[100,7200,0,0,2],[100,9000,0,0,0.5]],"levels":[2,3,1],"recommended":"route-3","reason":"High exposure"},
-  {"name":"strict_precipitation_no_travel","load":0,"routes":[[100,3600,0,1,0],[100,7200,0,0,3],[100,9000,0,1.0001,0]],"levels":[3,3,4],"recommended":"route-1","reason":"driving time"},
+  {"name":"strict_precipitation_no_travel","load":0,"routes":[[100,3600,0,1,0],[100,7200,0,0,3],[100,9000,0,1.0001,0]],"levels":[3,3,4],"recommended":"route-1","reason":"scheduled travel time"},
   {"name":"exact_tie_stable_id","load":0,"routes":[[100,3600,10,0,0],[100,3600,10,0,0],[100,3600,10,0,0]],"levels":[0,0,0],"recommended":"route-1","reason":"tie on all four"}
 ]

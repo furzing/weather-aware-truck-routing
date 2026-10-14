@@ -119,6 +119,6 @@ Verification used the rebuilt app in the real in-app browser, plus a temporary l
 
 ## Outstanding deployment limits
 
-No Docker engine is available locally. The user attempted Railway deployment; the supplied runtime logs reported a missing `SECRET_KEY`. A healthy public deployment and Loom video have not been verified. Cloudflare remains optional. No production traffic, multi-replica behavior, load test, truck-restriction correctness, physical-device GPS accuracy, or forecast accuracy study was evaluated.
+The previous public Railway revision passed HTTP/static smoke checks on 15 October 2026. The corrective revision still needs public rollout verification and a persistent volume for SQLite. No volume or billing change was made through this session. Cloudflare remains optional and its ephemeral container disk is unsuitable for durable saved comparisons. No production traffic, multi-replica behavior, load test, truck-restriction correctness, physical-device GPS accuracy, or forecast accuracy study was evaluated.
 
 Before submitting: confirm the final CI/container result, deploy the tested revision, repeat the public deployment smoke and phone checks, arrange reviewer access to the private repository, and record the walkthrough. Keep the documented car-profile and model-estimate limits visible.

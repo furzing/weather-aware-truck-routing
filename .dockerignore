@@ -11,3 +11,5 @@ output
 cloudflare
 **/.wrangler
 **/.dev.vars*
+**/*.sqlite3
+**/*.sqlite3-*

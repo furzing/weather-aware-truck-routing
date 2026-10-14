@@ -12,6 +12,14 @@ if os.environ.get("RAILWAY_ENVIRONMENT_ID"):
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 INSTALLED_APPS = ["django.contrib.staticfiles", "routing"]
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": os.environ.get("SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
+        "OPTIONS": {"timeout": 10, "transaction_mode": "IMMEDIATE"},
+    }
+}
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",

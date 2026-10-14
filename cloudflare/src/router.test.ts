@@ -7,6 +7,21 @@ const noBackend = () => {
   throw new Error('Static requests must never start a container');
 };
 
+test('cross-origin plan writes never reach the backend', async () => {
+  const response = await routeRequest(
+    new Request('https://example.workers.dev/api/plan', {
+      method: 'POST',
+      headers: { Origin: 'https://other.example', 'Content-Type': 'application/json' },
+      body: '{}',
+    }),
+    { ASSETS: { fetch: async () => new Response('') }, DJANGO_SECRET_KEY: secret },
+    noBackend,
+  );
+  assert.equal(response.status, 403);
+  const body = await response.json() as { error: { code: string } };
+  assert.equal(body.error.code, 'origin_rejected');
+});
+
 test('planner and Rules serve the same revalidated HTML without waking Django', async () => {
   for (const path of ['/', '/rules', '/rules/']) {
     const response = await routeRequest(
@@ -60,6 +75,7 @@ test('API forwarding preserves body/query and replaces untrusted proxy headers',
     body: '{"load_lb":38000}',
     headers: {
       'Content-Type': 'application/json',
+      Origin: 'https://example.workers.dev',
       'X-Forwarded-Proto': 'http',
       'X-Forwarded-Host': 'attacker.example',
       'X-Forwarded-For': '1.2.3.4',
@@ -80,6 +96,7 @@ test('API forwarding preserves body/query and replaces untrusted proxy headers',
       fetch: async (forwarded) => {
         assert.equal(forwarded.url, 'http://localhost/api/plan?q=1');
         assert.equal(forwarded.headers.get('Host'), 'localhost');
+        assert.equal(forwarded.headers.get('Origin'), 'http://localhost');
         assert.equal(forwarded.headers.get('X-Forwarded-Proto'), 'https');
         for (const header of ['Forwarded', 'X-Forwarded-Host', 'X-Forwarded-For'])
           assert.equal(forwarded.headers.get(header), null);

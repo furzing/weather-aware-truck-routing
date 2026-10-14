@@ -13,7 +13,11 @@ export async function routeRequest(
   const url = new URL(request.url);
   if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
     if (!env.DJANGO_SECRET_KEY) return unavailable();
+    const origin = request.headers.get('Origin');
+    if (request.method === 'POST' && origin && origin !== url.origin)
+      return Response.json({ error: { code: 'origin_rejected', message: "Compare trips from this site's planner." } }, { status: 403 });
     const headers = new Headers(request.headers);
+    if (origin === url.origin) headers.set('Origin', 'http://localhost');
     headers.set('Host', 'localhost');
     headers.set('X-Forwarded-Proto', 'https');
     for (const name of ['Forwarded', 'X-Forwarded-Host', 'X-Forwarded-For', 'X-Real-IP'])

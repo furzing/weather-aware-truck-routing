@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import httpx
 from django.core.cache import cache
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from .geometry import checkpoints, geometry_elapsed
 from .providers import ProviderError, Providers, weather_at
@@ -263,7 +263,7 @@ class WeatherTests(SimpleTestCase):
                 provider.close()
 
 
-class APITests(SimpleTestCase):
+class APITests(TestCase):
     def setUp(self):
         cache.clear()
 
@@ -324,7 +324,7 @@ class APITests(SimpleTestCase):
             self.assertEqual(
                 route["segments"][-1]["coordinates"][-1], route["geometry"]["coordinates"][-1]
             )
-        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertEqual(response["Cache-Control"], "private, no-store")
 
     def test_no_travel_never_recommended(self):
         def forecasts(self, points):

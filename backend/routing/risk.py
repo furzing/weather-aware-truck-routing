@@ -81,7 +81,7 @@ def explain_recommendation(routes):
     if len(eligible) == 1:
         return prefix + "It is the only route without No Travel checkpoints or planned stops."
     runner_up = eligible[1]
-    names = ("Severe exposure", "High exposure", "average risk", "driving time")
+    names = ("Severe exposure", "High exposure", "average risk", "scheduled travel time")
     for i, name in enumerate(names):
         a, b = priority(winner)[i], priority(runner_up)[i]
         if a != b:

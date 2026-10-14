@@ -9,6 +9,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
     & $pythonPath backend\manage.py collectstatic --noinput
     if ($LASTEXITCODE -ne 0) { throw 'Static asset collection failed.' }
+    & $pythonPath backend\manage.py migrate --noinput
+    if ($LASTEXITCODE -ne 0) { throw 'Database migration failed.' }
     Push-Location (Join-Path $projectRoot 'backend')
     try {
         Write-Host "Open http://127.0.0.1:$Port (Ctrl+C to stop)."
