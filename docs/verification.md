@@ -105,16 +105,20 @@ The revision adds no learned model and makes no claim of improved accident outco
 - Route/weather, simulation/drawer, Rules/history, and mobile/location regressions passed against the rebuilt app. Repeatable UI checks used explicitly captured or synthetic plans after live-provider instability; production behavior never falls back to them. Slider/playback/location made zero extra planner API calls in the respective checks. Mouse/touch/keyboard drawer checks, 34-pixel safe-area emulation, GPS permission/movement/offline/stale/stop emulation, and reduced-motion feedback passed. Axe detected zero violations in the checked planner/Rules/dark states; no page JavaScript errors were observed. Loading screenshots are `loading-320.png`, `loading-390.png`, and `loading-1365.png` under ignored `output/playwright/`.
 - Backend 38, frontend 17, and Worker 4 tests passed (59 total), along with lint, formatting, strict build, production smoke, and the existing 12-scenario/500-combination evaluation with all three selected mutations detected. A fresh six-response provider recording matched offline replay with HTTP disabled. The entry bundle remains about 535 KB minified / 161 KB gzip and emits Vite's existing size advisory.
 
-## Remaining release limits
-
 ## Loading motion preference correction
 
 The actual in-app browser reported `prefers-reduced-motion: reduce`, which explained its static spinner and progress bar. Earlier browser checks forced `no-preference`, so they did not establish animation behavior in this user's browser. Map settings now offers System preference (default), Full animations (explicit override), and Reduced motion, persisted locally. System and Reduced retain the accessibility behavior; elapsed-time and Cancel remain available. Full was selected in the user's localhost browser.
 
 Verification used the rebuilt app in the real in-app browser, plus a temporary local eight-second captured-response harness outside the production source. System with the browser's actual reduced-motion preference computed `animation-name: none`. Full computed `rotate` and `planning-sweep`; both spinner and bar transform matrices changed between consecutive screenshot/DOM observations. Explicit Reduced computed no animation and survived reload. The harness was removed from browser use afterward; it is ignored test output and never a production provider fallback. Frontend tests (17), lint, strict build, static collection, and HTTP/static smoke passed. Backend and Worker behavior did not change.
 
+## Map wheel and page scrolling correction
+
+- Enabled Leaflet wheel zoom, including its non-passive wheel handler for trackpad pinch events. Quarter-level zoom steps and lower wheel sensitivity make small inputs less abrupt. Physical trackpad pinch was not available for verification.
+- Contained the planner within the viewport and kept its hidden status element within that boundary. Before the change, the 720px desktop viewport had a 763px document and could scroll into empty space; afterward the document measured 720px. Rules keeps its normal document scrolling.
+- Browser checks confirmed wheel zoom in/out (tile zoom levels 6 → 8 → 6), independent desktop planner scrolling, and a 390×844 mobile page with no overflow while its planning sheet scrolled independently. Frontend lint, formatting, 17 tests, and production build passed.
+
 ## Outstanding deployment limits
 
-No Docker engine is available locally. Railway is prepared and Cloudflare remains optional, but no public application or Loom video exists yet. No production traffic, multi-replica behavior, load test, truck-restriction correctness, physical-device GPS accuracy, or forecast accuracy study was evaluated.
+No Docker engine is available locally. The user attempted Railway deployment; the supplied runtime logs reported a missing `SECRET_KEY`. A healthy public deployment and Loom video have not been verified. Cloudflare remains optional. No production traffic, multi-replica behavior, load test, truck-restriction correctness, physical-device GPS accuracy, or forecast accuracy study was evaluated.
 
 Before submitting: confirm the final CI/container result, deploy the tested revision, repeat the public deployment smoke and phone checks, arrange reviewer access to the private repository, and record the walkthrough. Keep the documented car-profile and model-estimate limits visible.

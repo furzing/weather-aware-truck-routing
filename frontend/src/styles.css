@@ -127,6 +127,14 @@ svg {
   letter-spacing: 0;
   margin-left: 5px;
 }
+.app-shell {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+.app-shell > main {
+  overflow: hidden;
+}
 main {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
@@ -142,6 +150,7 @@ main {
 }
 .sidebar-body {
   overflow-y: auto;
+  overscroll-behavior: contain;
   min-height: 0;
 }
 .trip-section {

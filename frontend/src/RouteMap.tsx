@@ -59,7 +59,9 @@ export function RouteMap({
       zoom: 6,
       zoomControl: false,
       preferCanvas: true,
-      scrollWheelZoom: false,
+      scrollWheelZoom: true,
+      zoomSnap: 0.25,
+      wheelPxPerZoomLevel: 120,
     });
     mapRef.current = map;
     L.control.zoom({ position: 'topright' }).addTo(map);
