@@ -1,9 +1,12 @@
 import { LocateFixed, Moon, Settings2, X, Play, Expand } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Appearance } from './useAppearance';
+import type { Motion } from './useMotion';
 import type { useLocation } from './useLocation';
 
 export function MapTools({
+  motion,
+  onMotion,
   appearance,
   onAppearance,
   location,
@@ -15,6 +18,8 @@ export function MapTools({
   simulating,
   onNavigate,
 }: {
+  motion: Motion;
+  onMotion: (value: Motion) => void;
   appearance: Appearance;
   onAppearance: (value: Appearance) => void;
   location: ReturnType<typeof useLocation>;
@@ -131,6 +136,17 @@ export function MapTools({
           <option value="auto">Auto · by local time</option>
         </select>
         <p>Auto uses night mode from 8 PM to 6 AM on this device.</p>
+        <label htmlFor="motion">Motion</label>
+        <select
+          id="motion"
+          value={motion}
+          onChange={(event) => onMotion(event.target.value as Motion)}
+        >
+          <option value="system">System preference</option>
+          <option value="full">Full animations</option>
+          <option value="reduced">Reduced motion</option>
+        </select>
+        <p>System follows your device setting. Full enables loading and map animations.</p>
         <strong>Device location</strong>
         <p>{location.status}</p>
         {location.fix && (

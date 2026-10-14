@@ -23,6 +23,7 @@ import { CheckpointDrawer } from './CheckpointDrawer';
 import { SimulationControls } from './SimulationControls';
 import { hasTiming, initialSimulation, positionAt, journeyDuration } from './simulation';
 import { useAppearance } from './useAppearance';
+import { useMotion } from './useMotion';
 import { useLocation } from './useLocation';
 import { MapTools } from './MapTools';
 import { PlanningProgress } from './PlanningProgress';
@@ -53,6 +54,7 @@ export default function App() {
   );
   const [simulation, setSimulation] = useState(initialSimulation);
   const { appearance, setAppearance } = useAppearance();
+  const { motion, setMotion } = useMotion();
   const location = useLocation(page === 'planner');
   const [locationFocus, setLocationFocus] = useState(0);
   useEffect(() => {
@@ -756,6 +758,8 @@ export default function App() {
               locationFocus={locationFocus}
             />
             <MapTools
+              motion={motion}
+              onMotion={setMotion}
               appearance={appearance}
               onAppearance={setAppearance}
               location={location}

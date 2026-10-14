@@ -107,6 +107,14 @@ The revision adds no learned model and makes no claim of improved accident outco
 
 ## Remaining release limits
 
+## Loading motion preference correction
+
+The actual in-app browser reported `prefers-reduced-motion: reduce`, which explained its static spinner and progress bar. Earlier browser checks forced `no-preference`, so they did not establish animation behavior in this user's browser. Map settings now offers System preference (default), Full animations (explicit override), and Reduced motion, persisted locally. System and Reduced retain the accessibility behavior; elapsed-time and Cancel remain available. Full was selected in the user's localhost browser.
+
+Verification used the rebuilt app in the real in-app browser, plus a temporary local eight-second captured-response harness outside the production source. System with the browser's actual reduced-motion preference computed `animation-name: none`. Full computed `rotate` and `planning-sweep`; both spinner and bar transform matrices changed between consecutive screenshot/DOM observations. Explicit Reduced computed no animation and survived reload. The harness was removed from browser use afterward; it is ignored test output and never a production provider fallback. Frontend tests (17), lint, strict build, static collection, and HTTP/static smoke passed. Backend and Worker behavior did not change.
+
+## Outstanding deployment limits
+
 No Docker engine is available locally. Railway is prepared and Cloudflare remains optional, but no public application or Loom video exists yet. No production traffic, multi-replica behavior, load test, truck-restriction correctness, physical-device GPS accuracy, or forecast accuracy study was evaluated.
 
 Before submitting: confirm the final CI/container result, deploy the tested revision, repeat the public deployment smoke and phone checks, arrange reviewer access to the private repository, and record the walkthrough. Keep the documented car-profile and model-estimate limits visible.

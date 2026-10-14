@@ -236,11 +236,14 @@ export function Rules({
             departure and as conditions change.
           </p>
           <details>
-            <summary>Device location and night mode</summary>
+            <summary>Device location, appearance, and motion</summary>
             <p>
               Map settings offers Light, Dark, or Auto appearance. Auto uses 8 PM–6 AM in the
-              device’s local timezone, not the trip’s departure time. Only this appearance choice is
-              saved in browser storage.
+              device’s local timezone, not the trip’s departure time. Motion defaults to System,
+              which respects the device’s reduced-motion preference. Choose Full animations to
+              explicitly enable loading and marker animations, or Reduced motion to disable them.
+              Elapsed-time feedback remains visible in every mode. Appearance and motion choices are
+              saved in browser storage; trips and device coordinates are not.
             </p>
             <p>
               Device location starts only when you enable it and grant browser permission. The blue
